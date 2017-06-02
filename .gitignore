@@ -1,0 +1,12 @@
+# phpstorm project files
+.idea
+
+# composer vendor dir
+/vendor
+
+composer.lock
+
+# phpunit itself is not needed
+phpunit.phar
+# local phpunit config
+/phpunit.xml
