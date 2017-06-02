@@ -20,7 +20,7 @@ class Image
     const VERTICAL = 0x12;
 
 
-    public function __construct($file) : void
+    public function __construct($file)
     {
         if($file === null) {
             $this->im = new \Gmagick;
