@@ -592,19 +592,7 @@ class Image
 
         // Create a new image for the background
         $background = new \Gmagick;
-        $background->newImage($this->width, $this->height, new \GmagickPixel($color));
-
-        if ( ! $background->getImageAlphaChannel())
-        {
-            // Force the image to have an alpha channel
-            $background->setImageAlphaChannel(Imagick::ALPHACHANNEL_SET);
-        }
-
-        // Clear the background image
-        $background->setImageBackgroundColor(new \GmagickPixel('transparent'));
-
-        // NOTE: Using setImageOpacity will destroy current alpha channels!
-        $background->evaluateImage(Imagick::EVALUATE_MULTIPLY, $opacity / 100, Imagick::CHANNEL_ALPHA);
+        $background->newImage($this->width, $this->height, (new \GmagickPixel($color))->getcolor(false));
 
         // Match the colorspace between the two images before compositing
         $background->setimagecolorspace($this->im->getimagecolorspace());
@@ -659,6 +647,8 @@ class Image
         {
             // Overwrite the file
             $file = $this->file;
+        } else {
+            $file = \Mii::resolve($file);
         }
 
         if (is_file($file))
@@ -684,6 +674,21 @@ class Image
 
         // Get the image format and type
         list($format, $type) = $this->_get_imagetype(pathinfo($file, PATHINFO_EXTENSION));
+
+        $from_format = strtolower($this->im->getimageformat());
+
+        if($from_format !== $format && $format === 'jpeg') {
+
+            $background = new \Gmagick;
+            $background->newImage($this->width, $this->height, "#FFFFFF");
+
+            if ($background->compositeimage($this->im, \Gmagick::COMPOSITE_OVER, 0, 0))
+            {
+                // Replace the current image with the new image
+                $this->im = $background;
+            }
+
+        }
 
         // Set the output image type
         $this->im->setimageformat($format);
@@ -752,10 +757,10 @@ class Image
     {
         // Normalize the extension to a format
         $format = strtolower($extension);
+        if($format === 'jpg') $format = 'jpeg';
 
         switch ($format)
         {
-            case 'jpg':
             case 'jpeg':
                 $type = IMAGETYPE_JPEG;
                 break;
