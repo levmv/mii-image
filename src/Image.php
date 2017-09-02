@@ -411,6 +411,15 @@ class Image
         return $this;
     }
 
+
+    public function blur($sigma) {
+
+        $this->im->blurimage(1, $sigma);
+
+        return $this;
+    }
+
+
     /**
      * Add a reflection to an image. The most opaque part of the reflection
      * will be equal to the opacity setting and fade out to full transparent.
