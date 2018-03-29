@@ -18,32 +18,8 @@ abstract class Image
     const HORIZONTAL = 0x11;
     const VERTICAL = 0x12;
 
-    /**
-     * @var  string  default driver: GD, ImageMagick, etc
-     */
-    public static $default_class = \levmorozov\image\gmagick\Image::class;
-
     // Status of the driver check
     protected static $_checked = false;
-
-    /**
-     * Loads an image and prepares it for manipulation.
-     *
-     *     $image = Image::factory('upload/test.jpg');
-     *
-     * @param   string $file image file path
-     * @param   string $driver driver type: GD, ImageMagick, etc
-     * @return  Image
-     * @uses    Image::$default_driver
-     */
-    public static function factory($file, $class = null)
-    {
-        if ($class === null) {
-            $class = config('image.class', Image::$default_class);
-        }
-
-        return new $class($file);
-    }
 
     /**
      * @var  string  image file path
