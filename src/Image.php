@@ -4,9 +4,8 @@ namespace levmorozov\image;
 
 use mii\util\Debug;
 
-class Image
+abstract class Image
 {
-
     // Resizing constraints
     const NONE = 0x01;
     const WIDTH = 0x02;
@@ -19,61 +18,32 @@ class Image
     const HORIZONTAL = 0x11;
     const VERTICAL = 0x12;
 
+    /**
+     * @var  string  default driver: GD, ImageMagick, etc
+     */
+    public static $default_class = \levmorozov\image\gmagick\Image::class;
 
-    public function __construct($file)
+    // Status of the driver check
+    protected static $_checked = false;
+
+    /**
+     * Loads an image and prepares it for manipulation.
+     *
+     *     $image = Image::factory('upload/test.jpg');
+     *
+     * @param   string $file image file path
+     * @param   string $driver driver type: GD, ImageMagick, etc
+     * @return  Image
+     * @uses    Image::$default_driver
+     */
+    public static function factory($file, $class = null)
     {
-        if($file === null) {
-            $this->im = new \Gmagick;
-        } elseif(is_object($file)) {
-            $this->im = $file;
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
-
-        } else {
-
-            try {
-                // Get the real path to the file
-                $realfile = realpath($file);
-
-                // Get the image information
-                $info = getimagesize($realfile);
-
-            } catch (\Exception $e) {
-                // Ignore all errors while reading the image
-            }
-
-            if (empty($realfile) OR empty($info)) {
-                throw new ImageException('Not an image or invalid image: '.Debug::path($file));
-            }
-
-            // Store the image information
-            $this->file = $realfile;
-            $this->width = $info[0];
-            $this->height = $info[1];
-            $this->type = $info[2];
-            $this->mime = image_type_to_mime_type($this->type);
-
-
-            $this->im = new \Gmagick($file);
+        if ($class === null) {
+            $class = config('image.class', Image::$default_class);
         }
 
-        /*if ( ! $this->im->getImageAlphaChannel())
-        {
-            // Force the image to have an alpha channel
-            $this->im->setImageAlphaChannel(Imagick::ALPHACHANNEL_SET);
-        }*/
+        return new $class($file);
     }
-
-    public function __destruct()
-    {
-        $this->im->clear();
-        $this->im->destroy();
-    }
-
-    public function get_raw_image() {
-        return $this->im;
-    }
-
 
     /**
      * @var  string  image file path
@@ -100,9 +70,39 @@ class Image
      */
     public $mime;
 
+    /**
+     * Loads information about the image. Will throw an exception if the image
+     * does not exist or is not an image.
+     *
+     * @param   string $file image file path
+     * @return  void
+     * @throws  \Exception
+     */
+    public function __construct($file)
+    {
+        try {
+            // Get the real path to the file
+            $realfile = realpath($file);
 
-    protected $im;
+            // Get the image information
+            $info = getimagesize($realfile);
 
+        } catch (\Exception $e) {
+            // Ignore all errors while reading the image
+        }
+
+        if (empty($realfile) OR empty($info)) {
+            throw new ImageException('Not an image or invalid image: :file',
+                [':file' => Debug::path($file)]);
+        }
+
+        // Store the image information
+        $this->file = $realfile;
+        $this->width = $info[0];
+        $this->height = $info[1];
+        $this->type = $info[2];
+        $this->mime = image_type_to_mime_type($this->type);
+    }
 
     /**
      * Render the current image.
@@ -112,8 +112,10 @@ class Image
      * [!!] The output of this function is binary and must be rendered with the
      * appropriate Content-Type header or it will not be displayed correctly!
      *
+     * @return  string
      */
-    public function __toString() {
+    public function __toString()
+    {
         try {
             // Render the current image
             return $this->render();
@@ -139,10 +141,10 @@ class Image
      *     $image->resize(200, 200, Image::INVERSE);
      *
      *     // Resize to 500 pixel width, keeping aspect ratio
-     *     $image->resize(500, NULL);
+     *     $image->resize(500, null);
      *
      *     // Resize to 500 pixel height, keeping aspect ratio
-     *     $image->resize(NULL, 500);
+     *     $image->resize(null, 500);
      *
      *     // Resize to 200x500 pixels, ignoring aspect ratio
      *     $image->resize(200, 500, Image::NONE);
@@ -153,8 +155,9 @@ class Image
      * @return  $this
      * @uses    Image::_do_resize
      */
-    public function resize($width = NULL, $height = NULL, $master = NULL) {
-        if ($master === NULL) {
+    public function resize($width = null, $height = null, $master = null)
+    {
+        if ($master === null) {
             // Choose the master dimension automatically
             $master = Image::AUTO;
         }
@@ -164,12 +167,12 @@ class Image
             $master = Image::AUTO;
 
             // Set empty height for backward compatibility
-            $height = NULL;
+            $height = null;
         } elseif ($master == Image::HEIGHT AND !empty($height)) {
             $master = Image::AUTO;
 
             // Set empty width for backward compatibility
-            $width = NULL;
+            $width = null;
         }
 
         if (empty($width)) {
@@ -228,13 +231,7 @@ class Image
         $width = max(round($width), 1);
         $height = max(round($height), 1);
 
-        if ($this->im->resizeimage($width, $height, \Gmagick::FILTER_LANCZOS, 1.01))
-        {
-            // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
-
-        }
+        $this->_do_resize($width, $height);
 
         return $this;
     }
@@ -244,7 +241,7 @@ class Image
      * omitted and the current width or height will be used.
      *
      * If no offset is specified, the center of the axis will be used.
-     * If an offset of TRUE is specified, the bottom of the axis will be used.
+     * If an offset of true is specified, the bottom of the axis will be used.
      *
      *     // Crop the image to 200x200 pixels, from the center
      *     $image->crop(200, 200);
@@ -256,7 +253,8 @@ class Image
      * @return  $this
      * @uses    Image::_do_crop
      */
-    public function crop($width, $height, $offset_x = NULL, $offset_y = NULL) {
+    public function crop($width, $height, $offset_x = null, $offset_y = null)
+    {
         if ($width > $this->width) {
             // Use the current width
             $width = $this->width;
@@ -267,10 +265,10 @@ class Image
             $height = $this->height;
         }
 
-        if ($offset_x === NULL) {
+        if ($offset_x === null) {
             // Center the X offset
             $offset_x = round(($this->width - $width) / 2);
-        } elseif ($offset_x === TRUE) {
+        } elseif ($offset_x === true) {
             // Bottom the X offset
             $offset_x = $this->width - $width;
         } elseif ($offset_x < 0) {
@@ -278,10 +276,10 @@ class Image
             $offset_x = $this->width - $width + $offset_x;
         }
 
-        if ($offset_y === NULL) {
+        if ($offset_y === null) {
             // Center the Y offset
             $offset_y = round(($this->height - $height) / 2);
-        } elseif ($offset_y === TRUE) {
+        } elseif ($offset_y === true) {
             // Bottom the Y offset
             $offset_y = $this->height - $height;
         } elseif ($offset_y < 0) {
@@ -303,15 +301,7 @@ class Image
             $height = $max_height;
         }
 
-        if ($this->im->cropimage($width, $height, $offset_x, $offset_y))
-        {
-            // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
-
-            // Trim off hidden areas
-            //$this->im->cropimage($this->width, $this->height, 0, 0);
-        }
+        $this->_do_crop($width, $height, $offset_x, $offset_y);
 
         return $this;
     }
@@ -329,7 +319,8 @@ class Image
      * @return  $this
      * @uses    Image::_do_rotate
      */
-    public function rotate($degrees) {
+    public function rotate($degrees)
+    {
         // Make the degrees an integer
         $degrees = (int)$degrees;
 
@@ -347,15 +338,7 @@ class Image
             } while ($degrees < -180);
         }
 
-        if ($this->im->rotateimage(new \GmagickPixel('transparent'), $degrees))
-        {
-            // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
-
-            // Trim off hidden areas
-            //$this->im->setImagePage($this->width, $this->height, 0, 0);
-        }
+        $this->_do_rotate($degrees);
 
         return $this;
     }
@@ -373,15 +356,14 @@ class Image
      * @return  $this
      * @uses    Image::_do_flip
      */
-    public function flip($direction) {
+    public function flip($direction)
+    {
+        if ($direction !== Image::HORIZONTAL) {
+            // Flip vertically
+            $direction = Image::VERTICAL;
+        }
 
-        if ($direction === Image::HORIZONTAL)
-        {
-            $this->im->flopImage();
-        }
-        else {
-            $this->im->flipImage();
-        }
+        $this->_do_flip($direction);
 
         return $this;
     }
@@ -396,25 +378,20 @@ class Image
      * @return  $this
      * @uses    Image::_do_sharpen
      */
-    public function sharpen($amount) {
+    public function sharpen($amount)
+    {
         // The amount must be in the range of 1 to 100
         $amount = min(max($amount, 1), 100);
 
-        // IM not support $amount under 5 (0.15)
-        $amount = ($amount < 5) ? 5 : $amount;
-
-        // Amount should be in the range of 0.0 to 3.0
-        $amount = ($amount * 3.0) / 100;
-
-        $this->im->sharpenImage(0, $amount);
+        $this->_do_sharpen($amount);
 
         return $this;
     }
 
 
-    public function blur($sigma) {
-
-        $this->im->blurimage(1, $sigma);
+    public function blur($sigma)
+    {
+        $this->_do_blur($sigma);
 
         return $this;
     }
@@ -429,22 +406,23 @@ class Image
      *     $image->reflection(50);
      *
      *     // Create a 50 pixel reflection that fades from 100-0% opacity
-     *     $image->reflection(50, 100, TRUE);
+     *     $image->reflection(50, 100, true);
      *
      *     // Create a 50 pixel reflection that fades from 0-60% opacity
-     *     $image->reflection(50, 60, TRUE);
+     *     $image->reflection(50, 60, true);
      *
      * [!!] By default, the reflection will be go from transparent at the top
      * to opaque at the bottom.
      *
      * @param   integer $height reflection height
      * @param   integer $opacity reflection opacity: 0-100
-     * @param   boolean $fade_in TRUE to fade in, FALSE to fade out
+     * @param   boolean $fade_in true to fade in, false to fade out
      * @return  $this
      * @uses    Image::_do_reflection
      */
-    public function reflection($height = NULL, $opacity = 100, $fade_in = FALSE) {
-        if ($height === NULL OR $height > $this->height) {
+    public function reflection($height = null, $opacity = 100, $fade_in = false)
+    {
+        if ($height === null OR $height > $this->height) {
             // Use the current height
             $height = $this->height;
         }
@@ -452,58 +430,7 @@ class Image
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        // Clone the current image and flip it for reflection
-        $reflection = $this->im->clone();
-        $reflection->flipImage();
-
-        // Crop the reflection to the selected height
-        $reflection->cropImage($this->width, $height, 0, 0);
-        $reflection->setImagePage($this->width, $height, 0, 0);
-
-        // Select the fade direction
-        $direction = array('transparent', 'black');
-
-        if ($fade_in)
-        {
-            // Change the direction of the fade
-            $direction = array_reverse($direction);
-        }
-
-        // Create a gradient for fading
-        $fade = new Imagick;
-        $fade->newPseudoImage($reflection->getImageWidth(), $reflection->getImageHeight(), vsprintf('gradient:%s-%s', $direction));
-
-        // Apply the fade alpha channel to the reflection
-        $reflection->compositeImage($fade, Imagick::COMPOSITE_DSTOUT, 0, 0);
-
-        // NOTE: Using setImageOpacity will destroy alpha channels!
-        $reflection->evaluateImage(Imagick::EVALUATE_MULTIPLY, $opacity / 100, Imagick::CHANNEL_ALPHA);
-
-        // Create a new container to hold the image and reflection
-        $image = new Imagick;
-        $image->newImage($this->width, $this->height + $height, new ImagickPixel);
-
-        // Force the image to have an alpha channel
-        $image->setImageAlphaChannel(Imagick::ALPHACHANNEL_SET);
-
-        // Force the background color to be transparent
-        // $image->setImageBackgroundColor(new ImagickPixel('transparent'));
-
-        // Match the colorspace between the two images before compositing
-        $image->setColorspace($this->im->getColorspace());
-
-        // Place the image and reflection into the container
-        if ($image->compositeImage($this->im, Imagick::COMPOSITE_SRC, 0, 0)
-            AND $image->compositeImage($reflection, Imagick::COMPOSITE_OVER, 0, $this->height))
-        {
-            // Replace the current image with the reflected image
-            $this->im = $image;
-
-            // Reset the width and height
-            $this->width = $this->im->getImageWidth();
-            $this->height = $this->im->getImageHeight();
-
-        }
+        $this->_do_reflection($height, $opacity, $fade_in);
 
         return $this;
     }
@@ -513,11 +440,11 @@ class Image
      * will be preserved.
      *
      * If no offset is specified, the center of the axis will be used.
-     * If an offset of TRUE is specified, the bottom of the axis will be used.
+     * If an offset of true is specified, the bottom of the axis will be used.
      *
      *     // Add a watermark to the bottom right of the image
      *     $mark = Image::factory('upload/watermark.png');
-     *     $image->watermark($mark, TRUE, TRUE);
+     *     $image->watermark($mark, true, true);
      *
      * @param   Image $watermark watermark Image instance
      * @param   integer $offset_x offset from the left
@@ -526,11 +453,12 @@ class Image
      * @return  $this
      * @uses    Image::_do_watermark
      */
-    public function watermark(Image $watermark, $offset_x = NULL, $offset_y = NULL, $opacity = 100) {
-        if ($offset_x === NULL) {
+    public function watermark(Image $watermark, $offset_x = null, $offset_y = null, $opacity = 100)
+    {
+        if ($offset_x === null) {
             // Center the X offset
             $offset_x = round(($this->width - $watermark->width) / 2);
-        } elseif ($offset_x === TRUE) {
+        } elseif ($offset_x === true) {
             // Bottom the X offset
             $offset_x = $this->width - $watermark->width;
         } elseif ($offset_x < 0) {
@@ -538,10 +466,10 @@ class Image
             $offset_x = $this->width - $watermark->width + $offset_x;
         }
 
-        if ($offset_y === NULL) {
+        if ($offset_y === null) {
             // Center the Y offset
             $offset_y = round(($this->height - $watermark->height) / 2);
-        } elseif ($offset_y === TRUE) {
+        } elseif ($offset_y === true) {
             // Bottom the Y offset
             $offset_y = $this->height - $watermark->height;
         } elseif ($offset_y < 0) {
@@ -552,14 +480,7 @@ class Image
         // The opacity must be in the range of 1 to 100
         $opacity = min(max($opacity, 1), 100);
 
-        $watermark->get_raw_image()->setImageBackgroundColor(new \GmagickPixel('transparent'));
-        $watermark->get_raw_image()->setimagecolorspace(\Gmagick::COLORSPACE_TRANSPARENT);
-
-        $this->im->compositeimage(
-            $watermark->get_raw_image(),
-            \Gmagick::COMPOSITE_DEFAULT,
-            $offset_x, $offset_y
-        );
+        $this->_do_watermark($watermark, $offset_x, $offset_y, $opacity);
 
         return $this;
     }
@@ -579,7 +500,8 @@ class Image
      * @return  $this
      * @uses    Image::_do_background
      */
-    public function background($color, $opacity = 100) {
+    public function background($color, $opacity = 100)
+    {
         if ($color[0] === '#') {
             // Remove the pound
             $color = substr($color, 1);
@@ -596,40 +518,29 @@ class Image
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        // Create a RGB color for the background
-        $color = sprintf('rgb(%d, %d, %d)', $r, $g, $b);
-
-        // Create a new image for the background
-        $background = new \Gmagick;
-        $background->newImage($this->width, $this->height, (new \GmagickPixel($color))->getcolor(false));
-
-        // Match the colorspace between the two images before compositing
-        $background->setimagecolorspace($this->im->getimagecolorspace());
-
-        if ($background->compositeimage($this->im, \Gmagick::COMPOSITE_DISSOLVE, 0, 0))
-        {
-            // Replace the current image with the new image
-            $this->im = $background;
-        }
+        $this->_do_background($r, $g, $b, $opacity);
 
         return $this;
     }
 
-    public function blank(int $width, int $height, $background = 'white') {
-        $this->im = $this->im->newimage($width, $height, $background);
-        $this->width = $this->im->getimagewidth();
-        $this->height = $this->im->getimageheight();
+    public function blank($width, $height, $background = [255, 255, 255])
+    {
+        if (!is_array($background) OR count($background) < 3 OR count($background) > 3)
+            $background = [255, 255, 255];
+
+        $this->_do_blank($width, $height, $background);
         return $this;
     }
 
 
-    public function strip() {
-        $this->im->stripimage();
-        return $this;
+    public function strip()
+    {
+        return $this->_do_strip();
     }
 
-    public function copy() {
-        return new self(clone $this->im);
+    public function copy()
+    {
+        return $this->_do_copy();
     }
 
     /**
@@ -647,146 +558,171 @@ class Image
      * [!!] If the file does not exist, and the directory is not writable, an
      * exception will be thrown.
      *
-     * @param   string   $file     new image path
-     * @param   integer  $quality  quality of image: 1-100
+     * @param   string $file new image path
+     * @param   integer $quality quality of image: 1-100
+     * @return bool
+     * @throws ImageException
      */
-    public function save(string $file = NULL, int $quality = 100) : bool
+    public function save($file = null, $quality = 100)
     {
-        if ($file === NULL)
-        {
+        if ($file === null) {
             // Overwrite the file
             $file = $this->file;
         } else {
             $file = \Mii::resolve($file);
         }
 
-        if (is_file($file))
-        {
-            if ( ! is_writable($file))
-            {
-                throw new ImageException('File must be writable: '.Debug::path($file));
+        if (is_file($file)) {
+            if (!is_writable($file)) {
+                throw new ImageException('File must be writable: ' . Debug::path($file));
             }
-        }
-        else
-        {
+        } else {
             // Get the directory of the file
             $directory = realpath(pathinfo($file, PATHINFO_DIRNAME));
 
-            if ( ! is_dir($directory) OR ! is_writable($directory))
-            {
-                throw new ImageException('Directory must be writable: '.Debug::path($directory));
+            if (!is_dir($directory) OR !is_writable($directory)) {
+                throw new ImageException('Directory must be writable: ' . Debug::path($directory));
             }
         }
 
         // The quality must be in the range of 1 to 100
         $quality = min(max($quality, 1), 100);
 
-        // Get the image format and type
-        list($format, $type) = $this->_get_imagetype(pathinfo($file, PATHINFO_EXTENSION));
-
-        $from_format = strtolower($this->im->getimageformat());
-
-        if($from_format !== $format && $format === 'jpeg') {
-
-            $background = new \Gmagick;
-            $background->newImage($this->width, $this->height, "#FFFFFF");
-
-            if ($background->compositeimage($this->im, \Gmagick::COMPOSITE_OVER, 0, 0))
-            {
-                // Replace the current image with the new image
-                $this->im = $background;
-            }
-
-        }
-
-        // Set the output image type
-        $this->im->setimageformat($format);
-
-        // Set the output quality
-        $this->im->setCompressionQuality($quality);
-
-        if ($this->im->writeimage($file))
-        {
-            // Reset the image type and mime type
-            $this->type = $type;
-            $this->mime = image_type_to_mime_type($type);
-
-            return true;
-        }
-
-        return false;
+        return $this->_do_save($file, $quality);
     }
 
     /**
      * Render the image and return the binary string.
      *
      *     // Render the image at 50% quality
-     *     $data = $image->render(NULL, 50);
+     *     $data = $image->render(null, 50);
      *
      *     // Render the image as a PNG
      *     $data = $image->render('png');
      *
-     * @param   string   $type     image type to return: png, jpg, gif, etc
-     * @param   integer  $quality  quality of image: 1-100
+     * @param   string $type image type to return: png, jpg, gif, etc
+     * @param   integer $quality quality of image: 1-100
      * @return  string
      * @uses    Image::_do_render
      */
-    public function render($type = NULL, $quality = 100)
+    public function render($type = null, $quality = 100)
     {
-        if ($type === NULL)
-        {
+        if ($type === null) {
             // Use the current image type
-            $type = image_type_to_extension($this->type, FALSE);
+            $type = image_type_to_extension($this->type, false);
         }
 
-        // Get the image format and type
-        list($format, $type) = $this->_get_imagetype($type);
-
-        // Set the output image type
-        $this->im->setimageformat($format);
-
-        // Set the output quality
-        $this->im->setCompressionQuality($quality);
-
-        // Reset the image type and mime type
-        $this->type = $type;
-        $this->mime = image_type_to_mime_type($type);
-
-        return (string) $this->im;
+        return $this->_do_render($type, $quality);
     }
 
 
     /**
-     * Get the image type and format for an extension.
+     * Execute a resize.
      *
-     * @param   string  $extension  image extension: png, jpg, etc
-     * @return  string  IMAGETYPE_* constant
+     * @param   integer $width new width
+     * @param   integer $height new height
+     * @return  void
      */
-    protected function _get_imagetype($extension)
-    {
-        // Normalize the extension to a format
-        $format = strtolower($extension);
-        if($format === 'jpg') $format = 'jpeg';
+    abstract protected function _do_resize($width, $height);
 
-        switch ($format)
-        {
-            case 'jpeg':
-                $type = IMAGETYPE_JPEG;
-                break;
-            case 'gif':
-                $type = IMAGETYPE_GIF;
-                break;
-            case 'png':
-                $type = IMAGETYPE_PNG;
-                break;
-            default:
-                throw new ImageException('Installed Gmagick does not support :type images',
-                    array(':type' => $extension));
-                break;
-        }
+    /**
+     * Execute a crop.
+     *
+     * @param   integer $width new width
+     * @param   integer $height new height
+     * @param   integer $offset_x offset from the left
+     * @param   integer $offset_y offset from the top
+     * @return  void
+     */
+    abstract protected function _do_crop($width, $height, $offset_x, $offset_y);
 
-        return [$format, $type];
-    }
+    /**
+     * Execute a rotation.
+     *
+     * @param   integer $degrees degrees to rotate
+     * @return  void
+     */
+    abstract protected function _do_rotate($degrees);
+
+    /**
+     * Execute a flip.
+     *
+     * @param   integer $direction direction to flip
+     * @return  void
+     */
+    abstract protected function _do_flip($direction);
+
+    /**
+     * Execute a sharpen.
+     *
+     * @param   integer $amount amount to sharpen
+     * @return  void
+     */
+    abstract protected function _do_sharpen($amount);
+
+    /**
+     * Execute a blur.
+     *
+     * @param   integer $sigma
+     * @return  void
+     */
+    abstract protected function _do_blur($sigma);
+
+    /**
+     * Execute a reflection.
+     *
+     * @param   integer $height reflection height
+     * @param   integer $opacity reflection opacity
+     * @param   boolean $fade_in true to fade out, false to fade in
+     * @return  void
+     */
+    abstract protected function _do_reflection($height, $opacity, $fade_in);
+
+    /**
+     * Execute a watermarking.
+     *
+     * @param   Image $image watermarking Image
+     * @param   integer $offset_x offset from the left
+     * @param   integer $offset_y offset from the top
+     * @param   integer $opacity opacity of watermark
+     * @return  void
+     */
+    abstract protected function _do_watermark(Image $image, $offset_x, $offset_y, $opacity);
 
 
-}
+    abstract protected function _do_blank($width, $height, $background);
+
+    abstract protected function _do_strip();
+
+    abstract protected function _do_copy();
+
+    /**
+     * Execute a background.
+     *
+     * @param   integer $r red
+     * @param   integer $g green
+     * @param   integer $b blue
+     * @param   integer $opacity opacity
+     * @return void
+     */
+    abstract protected function _do_background($r, $g, $b, $opacity);
+
+    /**
+     * Execute a save.
+     *
+     * @param   string $file new image filename
+     * @param   integer $quality quality
+     * @return  boolean
+     */
+    abstract protected function _do_save($file, $quality);
+
+    /**
+     * Execute a render.
+     *
+     * @param   string $type image type: png, jpg, gif, etc
+     * @param   integer $quality quality
+     * @return  string
+     */
+    abstract protected function _do_render($type, $quality);
+
+} // End Image
