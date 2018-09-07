@@ -11,7 +11,7 @@ class ImageComponent extends Component
      */
     public $driver = \levmorozov\image\gmagick\Image::class;
 
-    public function factory($file)
+    public function open($file)
     {
         return new $this->driver($file);
     }
