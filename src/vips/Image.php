@@ -105,7 +105,7 @@ class Image extends \levmorozov\image\Image
      */
     protected function _load_image()
     {
-        if (!is_resource($this->image)) {
+        if (!$this->image instanceof \Jcupitt\Vips\Image) {
             // Gets create function
             $create = $this->_create_function;
             // Open the temporary image
