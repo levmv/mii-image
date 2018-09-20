@@ -46,6 +46,9 @@ abstract class Image
      */
     public $mime;
 
+
+    public $quality = 100;
+
     /**
      * Loads information about the image. Will throw an exception if the image
      * does not exist or is not an image.
@@ -519,6 +522,12 @@ abstract class Image
         return $this->_do_copy();
     }
 
+    public function quality(int $quality)
+    {
+        $this->quality = $quality;
+        return $this;
+    }
+
     /**
      * Save the image. If the filename is omitted, the original image will
      * be overwritten.
@@ -539,7 +548,7 @@ abstract class Image
      * @return bool
      * @throws ImageException
      */
-    public function save($file = null, $quality = 100)
+    public function save($file = null, $quality = null)
     {
         if ($file === null) {
             // Overwrite the file
@@ -547,6 +556,9 @@ abstract class Image
         } else {
             $file = \Mii::resolve($file);
         }
+
+        if($quality === null)
+            $quality = $this->quality;
 
         if (is_file($file)) {
             if (!is_writable($file)) {
@@ -581,8 +593,11 @@ abstract class Image
      * @return  string
      * @uses    Image::_do_render
      */
-    public function render($type = null, $quality = 100)
+    public function render($type = null, $quality = null)
     {
+        if($quality === null)
+            $quality = $this->quality;
+
         if ($type === null) {
             // Use the current image type
             $type = image_type_to_extension($this->type, false);
