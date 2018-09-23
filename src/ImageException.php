@@ -3,4 +3,14 @@
 namespace levmorozov\image;
 
 
-class ImageException extends \Exception {}
+use Throwable;
+
+class ImageException extends \Exception {
+
+    public function __construct(string $message = "", $params = [])
+    {
+        parent::__construct(strtr($message, $params));
+    }
+
+
+}

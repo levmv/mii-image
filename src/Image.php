@@ -134,7 +134,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_resize
      */
-    public function resize($width = null, $height = null, $master = null)
+    public function resize(int $width = null, int $height = null, int $master = null): Image
     {
         if ($master === null) {
             // Choose the master dimension automatically
@@ -232,7 +232,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_crop
      */
-    public function crop($width, $height, $offset_x = null, $offset_y = null)
+    public function crop(int $width, int $height, int $offset_x = null, int $offset_y = null): Image
     {
         if ($width > $this->width) {
             // Use the current width
@@ -298,7 +298,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_rotate
      */
-    public function rotate($degrees)
+    public function rotate(int $degrees): Image
     {
         // Make the degrees an integer
         $degrees = (int)$degrees;
@@ -335,7 +335,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_flip
      */
-    public function flip($direction)
+    public function flip(int $direction): Image
     {
         if ($direction !== Image::HORIZONTAL) {
             // Flip vertically
@@ -357,7 +357,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_sharpen
      */
-    public function sharpen($amount)
+    public function sharpen(int $amount): Image
     {
         // The amount must be in the range of 1 to 100
         $amount = min(max($amount, 1), 100);
@@ -368,7 +368,7 @@ abstract class Image
     }
 
 
-    public function blur($sigma)
+    public function blur($sigma): Image
     {
         $this->_do_blur($sigma);
 
@@ -399,7 +399,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_reflection
      */
-    public function reflection($height = null, $opacity = 100, $fade_in = false)
+    public function reflection($height = null, $opacity = 100, $fade_in = false): Image
     {
         if ($height === null OR $height > $this->height) {
             // Use the current height
@@ -432,7 +432,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_watermark
      */
-    public function watermark(Image $watermark, $offset_x = null, $offset_y = null, $opacity = 100)
+    public function watermark(Image $watermark, $offset_x = null, $offset_y = null, $opacity = 100): Image
     {
         if ($offset_x === null) {
             // Center the X offset
@@ -479,7 +479,7 @@ abstract class Image
      * @return  $this
      * @uses    Image::_do_background
      */
-    public function background($color, $opacity = 100)
+    public function background($color, $opacity = 100): Image
     {
         if ($color[0] === '#') {
             // Remove the pound
@@ -502,7 +502,7 @@ abstract class Image
         return $this;
     }
 
-    public function blank($width, $height, $background = [255, 255, 255])
+    public function blank($width, $height, $background = [255, 255, 255]): Image
     {
         if (!is_array($background) OR count($background) < 3 OR count($background) > 3)
             $background = [255, 255, 255];
@@ -512,17 +512,17 @@ abstract class Image
     }
 
 
-    public function strip()
+    public function strip(): Image
     {
         return $this->_do_strip();
     }
 
-    public function copy()
+    public function copy(): Image
     {
         return $this->_do_copy();
     }
 
-    public function quality(int $quality)
+    public function quality(int $quality): Image
     {
         $this->quality = $quality;
         return $this;
@@ -548,7 +548,7 @@ abstract class Image
      * @return bool
      * @throws ImageException
      */
-    public function save($file = null, $quality = null)
+    public function save($file = null, $quality = null): bool
     {
         if ($file === null) {
             // Overwrite the file
@@ -557,7 +557,7 @@ abstract class Image
             $file = \Mii::resolve($file);
         }
 
-        if($quality === null)
+        if ($quality === null)
             $quality = $this->quality;
 
         if (is_file($file)) {
@@ -595,7 +595,7 @@ abstract class Image
      */
     public function render($type = null, $quality = null)
     {
-        if($quality === null)
+        if ($quality === null)
             $quality = $this->quality;
 
         if ($type === null) {
