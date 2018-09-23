@@ -2,6 +2,8 @@
 
 namespace levmorozov\image\vips;
 
+use Jcupitt\Vips\Exception;
+use Jcupitt\Vips\Interpretation;
 use Jcupitt\Vips\Size;
 use levmorozov\image\ImageException;
 
@@ -22,6 +24,7 @@ class Image extends \levmorozov\image\Image
     // Flag for strip metadata when save image
     protected $need_strip;
 
+
     /**
      * Checks if vips is enabled.
      *
@@ -30,12 +33,9 @@ class Image extends \levmorozov\image\Image
      */
     public static function check()
     {
-        // TODO
-        /*
-        if (!function_exists('')) {
+        if (!function_exists('vips_call')) {
             throw new ImageException('vips is either not installed or not enabled, check your configuration');
         }
-        */
 
         return Image::$_checked = true;
     }
@@ -82,6 +82,15 @@ class Image extends \levmorozov\image\Image
         $this->options = $options;
 
         $this->_load_image();
+
+        //if($this->image->get('icc-profile-data')) {
+        try {
+            $this->image = $this->image->icc_import(['embedded' => true]);
+
+            if($this->image->interpretation !== Interpretation::B_W && $this->image->interpretation !== Interpretation::GREY16) {
+                $this->image->colourspace(Interpretation::SRGB);
+            }
+        } catch (Exception $e) {}
     }
 
     /**
@@ -174,24 +183,19 @@ class Image extends \levmorozov\image\Image
      */
     protected function _save_function($extension, $quality)
     {
-        if (!$extension) {
-            // Use the current image type
-            $extension = image_type_to_extension($this->type, false);
+        if (!$extension || null === ($type = $this->extension_to_image_type($extension))) {
+            $type = $this->type;
         }
 
-        switch (strtolower($extension)) {
-            case 'jpg':
-            case 'jpe':
-            case 'jpeg':
-                // Save a JPG file
+        switch ($type) {
+            case IMAGETYPE_JPEG:
                 $save = 'jpegsave_buffer';
                 $type = IMAGETYPE_JPEG;
                 $options = $this->need_strip
                     ? ['Q' => $quality, 'strip' => true, 'optimize_coding' => true]
                     : ['Q' => $quality];
                 break;
-            case 'png':
-                // Save a PNG file
+            case IMAGETYPE_PNG:
                 $save = 'pngsave_buffer';
                 $type = IMAGETYPE_PNG;
                 // Use a compression level of 9 (does not affect quality!)
@@ -205,6 +209,23 @@ class Image extends \levmorozov\image\Image
         }
 
         return [$save, $type, $options];
+    }
+
+    protected function extension_to_image_type($extension)
+    {
+        switch (strtolower($extension)) {
+            case 'jpg':
+            case 'jpe':
+            case 'jpeg':
+                return IMAGETYPE_JPEG;
+            case 'png':
+                return IMAGETYPE_PNG;
+            case 'webp':
+                return IMAGETYPE_WEBP;
+            case 'gif':
+                return IMAGETYPE_GIF;
+        }
+        return null;
     }
 
     protected function _do_crop($width, $height, $offset_x, $offset_y)
@@ -249,7 +270,7 @@ class Image extends \levmorozov\image\Image
 
     protected function _do_save($file, $quality)
     {
-
+        return file_put_contents($file, $this->render(pathinfo($file, PATHINFO_EXTENSION), $quality));
     }
 
     protected function _do_blank($width, $height, $background)
