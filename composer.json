@@ -11,11 +11,13 @@
   "license": "MIT",
   "require": {
     "php": ">=7.1",
-    "levmorozov/mii" : "1.*",
-    "jcupitt/vips" : "dev-master"
+    "levmorozov/mii" : "1.*"
   },
   "require-dev": {
     "phpunit/phpunit": "~5.4"
+  },
+  "suggest": {
+    "jcupitt/vips" : "dev-master"
   },
   "autoload": {
     "psr-4": {
