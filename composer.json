@@ -16,6 +16,9 @@
   "require-dev": {
     "phpunit/phpunit": "~5.4"
   },
+  "suggest": {
+    "jcupitt/vips" : "dev-master"
+  },
   "autoload": {
     "psr-4": {
       "levmorozov\\image\\": "src/"
