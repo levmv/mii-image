@@ -13,9 +13,6 @@
     "php": ">=7.1",
     "levmorozov/mii" : ">=1.7.0"
   },
-  "require-dev": {
-    "phpunit/phpunit": "~5.4"
-  },
   "suggest": {
     "jcupitt/vips" : "~1.0.4"
   },
