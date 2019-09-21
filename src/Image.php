@@ -71,8 +71,7 @@ abstract class Image
         }
 
         if (empty($realfile) OR empty($info)) {
-            throw new ImageException('Not an image or invalid image: :file',
-                [':file' => Debug::path($file)]);
+            throw new ImageException('Not an image or invalid image: '.Debug::path($file));
         }
 
         // Store the image information
@@ -99,9 +98,9 @@ abstract class Image
             // Render the current image
             return $this->render();
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
 
-            \Mii::error(\mii\core\Exception::text($e));
+            \Mii::error($e);
 
             // Showing any kind of error will be "inside" image data
             return '';

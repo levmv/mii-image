@@ -11,15 +11,6 @@ class Image extends \levmorozov\image\Image
      */
     protected $im;
 
-    /**
-     * Checks if ImageMagick is enabled.
-     *
-     * @return  boolean
-     */
-    public static function check()
-    {
-        return Image::$_checked = true;
-    }
 
     /**
      * Runs Image::check and loads the image.
@@ -30,11 +21,6 @@ class Image extends \levmorozov\image\Image
      */
     public function __construct($file)
     {
-        if (!Image::$_checked) {
-            // Run the install check
-            Image::check();
-        }
-
         if ($file === null) {
             $this->im = new \Gmagick;
         } elseif (is_object($file)) {
@@ -322,8 +308,7 @@ class Image extends \levmorozov\image\Image
                 $type = IMAGETYPE_PNG;
                 break;
             default:
-                throw new ImageException('Installed Gmagick does not support :type images',
-                    array(':type' => $extension));
+                throw new ImageException("Installed Gmagick does not support $extension images");
                 break;
         }
 

@@ -2,7 +2,6 @@
 
 namespace levmorozov\image;
 
-
 use Throwable;
 
 class ImageException extends \Exception {

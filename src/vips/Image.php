@@ -26,21 +26,6 @@ class Image extends \levmorozov\image\Image
 
 
     /**
-     * Checks if vips is enabled.
-     *
-     * @return  boolean
-     * @throws ImageException
-     */
-    public static function check()
-    {
-        if (!function_exists('vips_call')) {
-            throw new ImageException('vips is either not installed or not enabled, check your configuration');
-        }
-
-        return Image::$_checked = true;
-    }
-
-    /**
      * Loads the image.
      *
      * @param   string $file image file path
@@ -49,11 +34,6 @@ class Image extends \levmorozov\image\Image
      */
     public function __construct($file)
     {
-        if (!Image::$_checked) {
-            // Run the install check
-            Image::check();
-        }
-
         parent::__construct($file);
 
         $options = [];
@@ -73,8 +53,7 @@ class Image extends \levmorozov\image\Image
         }
 
         if (!isset($create)) { //  OR !function_exists($create)
-            throw new ImageException('Installed vips does not support :type images',
-                [':type' => image_type_to_extension($this->type, false)]);
+            throw new ImageException('Installed vips does not support '.image_type_to_extension($this->type, false).' images');
         }
 
         // Save function and options for future use
@@ -90,7 +69,7 @@ class Image extends \levmorozov\image\Image
             if($this->image->interpretation !== Interpretation::B_W && $this->image->interpretation !== Interpretation::GREY16) {
                 $this->image->colourspace(Interpretation::SRGB);
             }
-        } catch (Exception $e) {}
+        } catch (\Throwable $e) {}
     }
 
     /**
@@ -154,7 +133,6 @@ class Image extends \levmorozov\image\Image
      * @param   integer $quality quality
      * @return  string
      * @throws ImageException
-     * @throws \Jcupitt\Vips\Exception
      */
     protected function _do_render($type, $quality)
     {
@@ -203,8 +181,7 @@ class Image extends \levmorozov\image\Image
                 $quality = 9;
                 break;
             default:
-                throw new ImageException('Installed vips does not support saving :type images',
-                    [':type' => $extension]);
+                throw new ImageException("Installed vips does not support saving $extension images");
                 break;
         }
 
