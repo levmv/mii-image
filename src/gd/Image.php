@@ -1,10 +1,10 @@
 <?php
 
-namespace levmorozov\image\gd;
+namespace mii\image\gd;
 
-use levmorozov\image\ImageException;
+use mii\image\ImageException;
 
-class Image extends \levmorozov\image\Image
+class Image extends \mii\image\Image
 {
     // Temporary image resource
     protected $_image;
@@ -356,13 +356,13 @@ class Image extends \levmorozov\image\Image
     /**
      * Execute a watermarking.
      *
-     * @param   \levmorozov\image\Image $watermark watermarking Image
+     * @param   \mii\image\Image $watermark watermarking Image
      * @param   integer $offset_x offset from the left
      * @param   integer $offset_y offset from the top
      * @param   integer $opacity opacity of watermark
      * @return  void
      */
-    protected function _do_watermark(\levmorozov\image\Image $watermark, $offset_x, $offset_y, $opacity)
+    protected function _do_watermark(\mii\image\Image $watermark, $offset_x, $offset_y, $opacity)
     {
         // Loads image if not yet loaded
         $this->_load_image();

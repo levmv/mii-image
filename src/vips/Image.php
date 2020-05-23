@@ -1,13 +1,13 @@
 <?php
 
-namespace levmorozov\image\vips;
+namespace mii\image\vips;
 
 use Jcupitt\Vips\Exception;
 use Jcupitt\Vips\Interpretation;
 use Jcupitt\Vips\Size;
-use levmorozov\image\ImageException;
+use mii\image\ImageException;
 
-class Image extends \levmorozov\image\Image
+class Image extends \mii\image\Image
 {
     // Temporary image resource
     /**
@@ -28,7 +28,7 @@ class Image extends \levmorozov\image\Image
     /**
      * Loads the image.
      *
-     * @param   string $file image file path
+     * @param string $file image file path
      * @throws ImageException
      * @throws \Exception
      */
@@ -53,7 +53,7 @@ class Image extends \levmorozov\image\Image
         }
 
         if (!isset($create)) { //  OR !function_exists($create)
-            throw new ImageException('Installed vips does not support '.image_type_to_extension($this->type, false).' images');
+            throw new ImageException('Installed vips does not support ' . image_type_to_extension($this->type, false) . ' images');
         }
 
         // Save function and options for future use
@@ -66,10 +66,11 @@ class Image extends \levmorozov\image\Image
         try {
             $this->image = $this->image->icc_import(['embedded' => true]);
 
-            if($this->image->interpretation !== Interpretation::B_W && $this->image->interpretation !== Interpretation::GREY16) {
+            if ($this->image->interpretation !== Interpretation::B_W && $this->image->interpretation !== Interpretation::GREY16) {
                 $this->image->colourspace(Interpretation::SRGB);
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+        }
     }
 
     /**
@@ -104,8 +105,8 @@ class Image extends \levmorozov\image\Image
     /**
      * Execute a resize.
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
+     * @param integer $width new width
+     * @param integer $height new height
      * @return  void
      * @throws \Jcupitt\Vips\Exception
      */
@@ -129,8 +130,8 @@ class Image extends \levmorozov\image\Image
     /**
      * Execute a render.
      *
-     * @param   string $type image type: png, jpg, gif, etc
-     * @param   integer $quality quality
+     * @param string  $type image type: png, jpg, gif, etc
+     * @param integer $quality quality
      * @return  string
      * @throws ImageException
      */
@@ -155,7 +156,7 @@ class Image extends \levmorozov\image\Image
      * Get the vips saving function, image type and options for this extension.
      *
      * @param string $extension image type: png, jpg, etc
-     * @param int $quality image quality
+     * @param int    $quality image quality
      * @return array save function, IMAGETYPE_* constant, options
      * @throws ImageException
      */
@@ -235,7 +236,7 @@ class Image extends \levmorozov\image\Image
 
     }
 
-    protected function _do_watermark(\levmorozov\image\Image $image, $offset_x, $offset_y, $opacity)
+    protected function _do_watermark(\mii\image\Image $image, $offset_x, $offset_y, $opacity)
     {
 
     }

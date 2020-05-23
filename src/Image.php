@@ -1,25 +1,21 @@
 <?php
 
-namespace levmorozov\image;
+namespace mii\image;
 
-use mii\util\Debug;
 
 abstract class Image
 {
     // Resizing constraints
-    const NONE = 0x01;
-    const WIDTH = 0x02;
-    const HEIGHT = 0x03;
-    const AUTO = 0x04;
-    const INVERSE = 0x05;
-    const PRECISE = 0x06;
+    public const NONE = 0x01;
+    public const WIDTH = 0x02;
+    public const HEIGHT = 0x03;
+    public const AUTO = 0x04;
+    public const INVERSE = 0x05;
+    public const PRECISE = 0x06;
 
     // Flipping directions
-    const HORIZONTAL = 0x11;
-    const VERTICAL = 0x12;
-
-    // Status of the driver check
-    protected static $_checked = false;
+    public const HORIZONTAL = 0x11;
+    public const VERTICAL = 0x12;
 
     /**
      * @var  string  image file path
@@ -29,35 +25,35 @@ abstract class Image
     /**
      * @var  integer  image width
      */
-    public $width;
+    public int $width;
 
     /**
      * @var  integer  image height
      */
-    public $height;
+    public int $height;
 
     /**
      * @var  integer  one of the IMAGETYPE_* constants
      */
-    public $type;
+    public int $type;
 
     /**
      * @var  string  mime type of the image
      */
-    public $mime;
+    public string $mime;
 
 
-    public $quality = 100;
+    public int $quality = 100;
 
     /**
      * Loads information about the image. Will throw an exception if the image
      * does not exist or is not an image.
      *
-     * @param   string $file image file path
+     * @param string $file image file path
      * @return  void
      * @throws  \Exception
      */
-    public function __construct($file)
+    public function __construct(string $file)
     {
         try {
             // Get the real path to the file
@@ -70,8 +66,8 @@ abstract class Image
             // Ignore all errors while reading the image
         }
 
-        if (empty($realfile) OR empty($info)) {
-            throw new ImageException('Not an image or invalid image: '.Debug::path($file));
+        if (empty($realfile) || empty($info)) {
+            throw new ImageException('Not an image or invalid image: ' . \mii\util\Debug::path($file));
         }
 
         // Store the image information
@@ -127,9 +123,9 @@ abstract class Image
      *     // Resize to 200x500 pixels, ignoring aspect ratio
      *     $image->resize(200, 500, Image::NONE);
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
-     * @param   integer $master master dimension
+     * @param integer $width new width
+     * @param integer $height new height
+     * @param integer $master master dimension
      * @return  $this
      * @uses    Image::_do_resize
      */
@@ -141,12 +137,12 @@ abstract class Image
         }
         // Image::WIDTH and Image::HEIGHT deprecated. You can use it in old projects,
         // but in new you must pass empty value for non-master dimension
-        elseif ($master == Image::WIDTH AND !empty($width)) {
+        elseif ($master == Image::WIDTH and !empty($width)) {
             $master = Image::AUTO;
 
             // Set empty height for backward compatibility
             $height = null;
-        } elseif ($master == Image::HEIGHT AND !empty($height)) {
+        } elseif ($master == Image::HEIGHT and !empty($height)) {
             $master = Image::AUTO;
 
             // Set empty width for backward compatibility
@@ -224,10 +220,10 @@ abstract class Image
      *     // Crop the image to 200x200 pixels, from the center
      *     $image->crop(200, 200);
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
-     * @param   mixed $offset_x offset from the left
-     * @param   mixed $offset_y offset from the top
+     * @param integer $width new width
+     * @param integer $height new height
+     * @param mixed   $offset_x offset from the left
+     * @param mixed   $offset_y offset from the top
      * @return  $this
      * @uses    Image::_do_crop
      */
@@ -293,7 +289,7 @@ abstract class Image
      *     // Rotate 90% counter-clockwise
      *     $image->rotate(-90);
      *
-     * @param   integer $degrees degrees to rotate: -360-360
+     * @param integer $degrees degrees to rotate: -360-360
      * @return  $this
      * @uses    Image::_do_rotate
      */
@@ -330,7 +326,7 @@ abstract class Image
      *     // Flip the image from left to right
      *     $image->flip(Image::VERTICAL);
      *
-     * @param   integer $direction direction: Image::HORIZONTAL, Image::VERTICAL
+     * @param integer $direction direction: Image::HORIZONTAL, Image::VERTICAL
      * @return  $this
      * @uses    Image::_do_flip
      */
@@ -352,7 +348,7 @@ abstract class Image
      *     // Sharpen the image by 20%
      *     $image->sharpen(20);
      *
-     * @param   integer $amount amount to sharpen: 1-100
+     * @param integer $amount amount to sharpen: 1-100
      * @return  $this
      * @uses    Image::_do_sharpen
      */
@@ -392,15 +388,15 @@ abstract class Image
      * [!!] By default, the reflection will be go from transparent at the top
      * to opaque at the bottom.
      *
-     * @param   integer $height reflection height
-     * @param   integer $opacity reflection opacity: 0-100
-     * @param   boolean $fade_in true to fade in, false to fade out
+     * @param integer $height reflection height
+     * @param integer $opacity reflection opacity: 0-100
+     * @param boolean $fade_in true to fade in, false to fade out
      * @return  $this
      * @uses    Image::_do_reflection
      */
     public function reflection($height = null, $opacity = 100, $fade_in = false): Image
     {
-        if ($height === null OR $height > $this->height) {
+        if ($height === null or $height > $this->height) {
             // Use the current height
             $height = $this->height;
         }
@@ -424,10 +420,10 @@ abstract class Image
      *     $mark = Image::factory('upload/watermark.png');
      *     $image->watermark($mark, true, true);
      *
-     * @param   Image $watermark watermark Image instance
-     * @param   integer $offset_x offset from the left
-     * @param   integer $offset_y offset from the top
-     * @param   integer $opacity opacity of watermark: 1-100
+     * @param Image   $watermark watermark Image instance
+     * @param integer $offset_x offset from the left
+     * @param integer $offset_y offset from the top
+     * @param integer $opacity opacity of watermark: 1-100
      * @return  $this
      * @uses    Image::_do_watermark
      */
@@ -473,8 +469,8 @@ abstract class Image
      *     // Make the image background black with 50% opacity
      *     $image->background('#000', 50);
      *
-     * @param   string $color hexadecimal color value
-     * @param   integer $opacity background opacity: 0-100
+     * @param string  $color hexadecimal color value
+     * @param integer $opacity background opacity: 0-100
      * @return  $this
      * @uses    Image::_do_background
      */
@@ -503,7 +499,7 @@ abstract class Image
 
     public function blank($width, $height, $background = [255, 255, 255]): Image
     {
-        if (!is_array($background) OR count($background) < 3 OR count($background) > 3)
+        if (!is_array($background) or count($background) < 3 or count($background) > 3)
             $background = [255, 255, 255];
 
         $this->_do_blank($width, $height, $background);
@@ -542,8 +538,8 @@ abstract class Image
      * [!!] If the file does not exist, and the directory is not writable, an
      * exception will be thrown.
      *
-     * @param   string $file new image path
-     * @param   integer $quality quality of image: 1-100
+     * @param string  $file new image path
+     * @param integer $quality quality of image: 1-100
      * @return bool
      * @throws ImageException
      */
@@ -567,7 +563,7 @@ abstract class Image
             // Get the directory of the file
             $directory = realpath(pathinfo($file, PATHINFO_DIRNAME));
 
-            if (!is_dir($directory) OR !is_writable($directory)) {
+            if (!is_dir($directory) or !is_writable($directory)) {
                 throw new ImageException('Directory must be writable: ' . Debug::path($directory));
             }
         }
@@ -587,8 +583,8 @@ abstract class Image
      *     // Render the image as a PNG
      *     $data = $image->render('png');
      *
-     * @param   string $type image type to return: png, jpg, gif, etc
-     * @param   integer $quality quality of image: 1-100
+     * @param string  $type image type to return: png, jpg, gif, etc
+     * @param integer $quality quality of image: 1-100
      * @return  string
      * @uses    Image::_do_render
      */
@@ -609,8 +605,8 @@ abstract class Image
     /**
      * Execute a resize.
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
+     * @param integer $width new width
+     * @param integer $height new height
      * @return  void
      */
     abstract protected function _do_resize($width, $height);
@@ -618,10 +614,10 @@ abstract class Image
     /**
      * Execute a crop.
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
-     * @param   integer $offset_x offset from the left
-     * @param   integer $offset_y offset from the top
+     * @param integer $width new width
+     * @param integer $height new height
+     * @param integer $offset_x offset from the left
+     * @param integer $offset_y offset from the top
      * @return  void
      */
     abstract protected function _do_crop($width, $height, $offset_x, $offset_y);
@@ -629,7 +625,7 @@ abstract class Image
     /**
      * Execute a rotation.
      *
-     * @param   integer $degrees degrees to rotate
+     * @param integer $degrees degrees to rotate
      * @return  void
      */
     abstract protected function _do_rotate($degrees);
@@ -637,7 +633,7 @@ abstract class Image
     /**
      * Execute a flip.
      *
-     * @param   integer $direction direction to flip
+     * @param integer $direction direction to flip
      * @return  void
      */
     abstract protected function _do_flip($direction);
@@ -645,7 +641,7 @@ abstract class Image
     /**
      * Execute a sharpen.
      *
-     * @param   integer $amount amount to sharpen
+     * @param integer $amount amount to sharpen
      * @return  void
      */
     abstract protected function _do_sharpen($amount);
@@ -653,7 +649,7 @@ abstract class Image
     /**
      * Execute a blur.
      *
-     * @param   integer $sigma
+     * @param integer $sigma
      * @return  void
      */
     abstract protected function _do_blur($sigma);
@@ -661,9 +657,9 @@ abstract class Image
     /**
      * Execute a reflection.
      *
-     * @param   integer $height reflection height
-     * @param   integer $opacity reflection opacity
-     * @param   boolean $fade_in true to fade out, false to fade in
+     * @param integer $height reflection height
+     * @param integer $opacity reflection opacity
+     * @param boolean $fade_in true to fade out, false to fade in
      * @return  void
      */
     abstract protected function _do_reflection($height, $opacity, $fade_in);
@@ -671,10 +667,10 @@ abstract class Image
     /**
      * Execute a watermarking.
      *
-     * @param   Image $image watermarking Image
-     * @param   integer $offset_x offset from the left
-     * @param   integer $offset_y offset from the top
-     * @param   integer $opacity opacity of watermark
+     * @param Image   $image watermarking Image
+     * @param integer $offset_x offset from the left
+     * @param integer $offset_y offset from the top
+     * @param integer $opacity opacity of watermark
      * @return  void
      */
     abstract protected function _do_watermark(Image $image, $offset_x, $offset_y, $opacity);
@@ -689,10 +685,10 @@ abstract class Image
     /**
      * Execute a background.
      *
-     * @param   integer $r red
-     * @param   integer $g green
-     * @param   integer $b blue
-     * @param   integer $opacity opacity
+     * @param integer $r red
+     * @param integer $g green
+     * @param integer $b blue
+     * @param integer $opacity opacity
      * @return void
      */
     abstract protected function _do_background($r, $g, $b, $opacity);
@@ -700,8 +696,8 @@ abstract class Image
     /**
      * Execute a save.
      *
-     * @param   string $file new image filename
-     * @param   integer $quality quality
+     * @param string  $file new image filename
+     * @param integer $quality quality
      * @return  boolean
      */
     abstract protected function _do_save($file, $quality);
@@ -709,8 +705,8 @@ abstract class Image
     /**
      * Execute a render.
      *
-     * @param   string $type image type: png, jpg, gif, etc
-     * @param   integer $quality quality
+     * @param string  $type image type: png, jpg, gif, etc
+     * @param integer $quality quality
      * @return  string
      */
     abstract protected function _do_render($type, $quality);

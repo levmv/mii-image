@@ -1,10 +1,10 @@
 <?php
 
-namespace levmorozov\image\gmagick;
+namespace mii\image\gmagick;
 
-use levmorozov\image\ImageException;
+use mii\image\ImageException;
 
-class Image extends \levmorozov\image\Image
+class Image extends \mii\image\Image
 {
     /**
      * @var  \Gmagick  image magick object
@@ -178,7 +178,7 @@ class Image extends \levmorozov\image\Image
         return false;
     }
 
-    protected function _do_watermark(\levmorozov\image\Image $image, $offset_x, $offset_y, $opacity)
+    protected function _do_watermark(\mii\image\Image $image, $offset_x, $offset_y, $opacity)
     {
         $image->get_raw_image()->setImageBackgroundColor(new \GmagickPixel('transparent'));
         $image->get_raw_image()->setimagecolorspace(\Gmagick::COLORSPACE_TRANSPARENT);
