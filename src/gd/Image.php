@@ -37,7 +37,7 @@ class Image extends \mii\image\Image
         }
 
         if (!isset($create) OR !function_exists($create)) {
-            throw new ImageException('Installed GD does not support ".image_type_to_extension($this->type, false)." images');
+            throw new ImageException('Installed GD does not support "'.image_type_to_extension($this->type, false).'" images');
         }
 
         // Save function for future use
