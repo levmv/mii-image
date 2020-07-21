@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace mii\image\vips;
 
@@ -16,38 +16,67 @@ class Image extends \mii\image\Image
     protected $image;
 
     // Function name to open Image
-    protected $_create_function;
+    protected string $create_function;
 
     // Options for create function (autorotate for jpeg)
-    protected $options = [];
+    protected array $options = [];
 
     // Flag for strip metadata when save image
-    protected $need_strip;
+    protected bool $need_strip = false;
 
 
     /**
      * Loads the image.
      *
-     * @param string $file image file path
+     * @param string $file image file path or buffer
+     * @param bool   $is_buffer
      * @throws ImageException
      * @throws \Exception
      */
-    public function __construct($file)
+    public function __construct(string $file, bool $is_buffer = false)
     {
+        if ($is_buffer) {
+
+            $this->image = \Jcupitt\Vips\Image::newFromBuffer($file);
+            $loader = $this->image->get('vips-loader');
+
+            switch ($loader) {
+                case 'jpegload_buffer':
+                    $this->type = \IMAGETYPE_JPEG;
+                    break;
+                case 'pngload_buffer':
+                    $this->type = \IMAGETYPE_PNG;
+                    break;
+                case 'gifload_buffer':
+                    $this->type = \IMAGETYPE_GIF;
+                    break;
+            }
+
+            if (!$this->type) {
+                throw new ImageException("Unsupported image type, vips-loader: $loader");
+            }
+
+            $this->mime = image_type_to_mime_type($this->type);
+            $this->width = $this->image->width;
+            $this->height = $this->image->height;
+
+            return;
+        }
+
         parent::__construct($file);
 
         $options = [];
 
         // Set the image creation function name
         switch ($this->type) {
-            case IMAGETYPE_JPEG:
+            case \IMAGETYPE_JPEG:
                 $create = 'jpegload';
                 $options = ['autorotate' => true];
                 break;
-            case IMAGETYPE_GIF:
+            case \IMAGETYPE_GIF:
                 $create = 'gifload';
                 break;
-            case IMAGETYPE_PNG:
+            case \IMAGETYPE_PNG:
                 $create = 'pngload';
                 break;
         }
@@ -57,10 +86,10 @@ class Image extends \mii\image\Image
         }
 
         // Save function and options for future use
-        $this->_create_function = $create;
+        $this->create_function = $create;
         $this->options = $options;
 
-        $this->_load_image();
+        $this->loadImage();
 
         //if($this->image->get('icc-profile-data')) {
         try {
@@ -92,11 +121,11 @@ class Image extends \mii\image\Image
      * @return  void
      * @throws \Jcupitt\Vips\Exception
      */
-    protected function _load_image()
+    protected function loadImage(): void
     {
         if (!$this->image instanceof \Jcupitt\Vips\Image) {
             // Gets create function
-            $create = $this->_create_function;
+            $create = $this->create_function;
             // Open the temporary image
             $this->image = \Jcupitt\Vips\Image::$create($this->file, $this->options);
         }
@@ -110,10 +139,10 @@ class Image extends \mii\image\Image
      * @return  void
      * @throws \Jcupitt\Vips\Exception
      */
-    protected function _do_resize($width, $height)
+    protected function doResize(int $width, int $height): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         $this->image = $this->image->thumbnail_image($width, ['height' => $height, 'size' => Size::DOWN]);
 
@@ -121,7 +150,7 @@ class Image extends \mii\image\Image
         $this->height = $this->image->height;
     }
 
-    protected function _do_strip()
+    protected function doStrip(): \mii\image\Image
     {
         $this->need_strip = true;
         return $this;
@@ -135,13 +164,13 @@ class Image extends \mii\image\Image
      * @return  string
      * @throws ImageException
      */
-    protected function _do_render($type, $quality)
+    protected function doRender(string $type, int $quality): string
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Get the save function and IMAGETYPE
-        list($save, $type, $options) = $this->_save_function($type, $quality);
+        [$save, $type, $options] = $this->saveFunction($type, $quality);
 
         if ($type !== $this->type) {
             // Reset the image type and mime type
@@ -160,23 +189,23 @@ class Image extends \mii\image\Image
      * @return array save function, IMAGETYPE_* constant, options
      * @throws ImageException
      */
-    protected function _save_function($extension, $quality)
+    protected function saveFunction(string $extension, int $quality): array
     {
-        if (!$extension || null === ($type = $this->extension_to_image_type($extension))) {
+        if (!$extension || null === ($type = $this->extensionToImageType($extension))) {
             $type = $this->type;
         }
 
         switch ($type) {
-            case IMAGETYPE_JPEG:
+            case \IMAGETYPE_JPEG:
                 $save = 'jpegsave_buffer';
-                $type = IMAGETYPE_JPEG;
+                $type = \IMAGETYPE_JPEG;
                 $options = $this->need_strip
                     ? ['Q' => $quality, 'strip' => true, 'optimize_coding' => true]
                     : ['Q' => $quality];
                 break;
-            case IMAGETYPE_PNG:
+            case \IMAGETYPE_PNG:
                 $save = 'pngsave_buffer';
-                $type = IMAGETYPE_PNG;
+                $type = \IMAGETYPE_PNG;
                 // Use a compression level of 9 (does not affect quality!)
                 $options = ['compression' => 9];
                 $quality = 9;
@@ -189,75 +218,65 @@ class Image extends \mii\image\Image
         return [$save, $type, $options];
     }
 
-    protected function extension_to_image_type($extension)
+    protected function extensionToImageType(string $extension)
     {
         switch (strtolower($extension)) {
             case 'jpg':
             case 'jpe':
             case 'jpeg':
-                return IMAGETYPE_JPEG;
+                return \IMAGETYPE_JPEG;
             case 'png':
-                return IMAGETYPE_PNG;
+                return \IMAGETYPE_PNG;
             case 'webp':
-                return IMAGETYPE_WEBP;
+                return \IMAGETYPE_WEBP;
             case 'gif':
-                return IMAGETYPE_GIF;
+                return \IMAGETYPE_GIF;
         }
         return null;
     }
 
-    protected function _do_crop($width, $height, $offset_x, $offset_y)
+    protected function doCrop(int $width, int $height, int $offset_x, int $offset_y): void
     {
-
     }
 
-    protected function _do_rotate($degrees)
+    protected function doRotate(int $degrees): void
     {
-
     }
 
-    protected function _do_flip($direction)
+    protected function doFlip(int $direction): void
     {
-
     }
 
-    protected function _do_sharpen($amount)
+    protected function doSharpen(int $amount): void
     {
-
     }
 
-    protected function _do_blur($sigma)
+    protected function doBlur(int $sigma): void
     {
-
     }
 
-    protected function _do_reflection($height, $opacity, $fade_in)
+    protected function doReflection(int $height, int $opacity, bool $fade_in): void
     {
-
     }
 
-    protected function _do_watermark(\mii\image\Image $image, $offset_x, $offset_y, $opacity)
+    protected function doWatermark(\mii\image\Image $image, int $offset_x, int $offset_y, int $opacity): void
     {
-
     }
 
-    protected function _do_background($r, $g, $b, $opacity)
+    protected function doBackground(int $r,int $g, int $b, int $opacity): void
     {
-
     }
 
-    protected function _do_save($file, $quality)
+    protected function doSave(string $file, int $quality): bool
     {
-        return file_put_contents($file, $this->render(pathinfo($file, PATHINFO_EXTENSION), $quality));
+        return (bool)file_put_contents($file, $this->render(pathinfo($file, \PATHINFO_EXTENSION), $quality));
     }
 
-    protected function _do_blank($width, $height, $background)
+    protected function doBlank(int $width, int $height, array $background): void
     {
-
     }
 
-    public function _do_copy()
+    public function doCopy()
     {
-
     }
 }

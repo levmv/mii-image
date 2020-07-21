@@ -1,7 +1,8 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace mii\image;
 
+use mii\util\Debug;
 
 abstract class Image
 {
@@ -20,7 +21,7 @@ abstract class Image
     /**
      * @var  string  image file path
      */
-    public $file;
+    public string $file;
 
     /**
      * @var  integer  image width
@@ -61,7 +62,6 @@ abstract class Image
 
             // Get the image information
             $info = getimagesize($realfile);
-
         } catch (\Exception $e) {
             // Ignore all errors while reading the image
         }
@@ -93,9 +93,7 @@ abstract class Image
         try {
             // Render the current image
             return $this->render();
-
         } catch (\Throwable $e) {
-
             \Mii::error($e);
 
             // Showing any kind of error will be "inside" image data
@@ -127,7 +125,7 @@ abstract class Image
      * @param integer $height new height
      * @param integer $master master dimension
      * @return  $this
-     * @uses    Image::_do_resize
+     * @uses    Image::doResize
      */
     public function resize(int $width = null, int $height = null, int $master = null): Image
     {
@@ -202,10 +200,10 @@ abstract class Image
         }
 
         // Convert the width and height to integers, minimum value is 1px
-        $width = max(round($width), 1);
-        $height = max(round($height), 1);
+        $width = max((int)round($width), 1);
+        $height = max((int)round($height), 1);
 
-        $this->_do_resize($width, $height);
+        $this->doResize($width, $height);
 
         return $this;
     }
@@ -225,7 +223,7 @@ abstract class Image
      * @param mixed   $offset_x offset from the left
      * @param mixed   $offset_y offset from the top
      * @return  $this
-     * @uses    Image::_do_crop
+     * @uses    Image::doCrop
      */
     public function crop(int $width, int $height, int $offset_x = null, int $offset_y = null): Image
     {
@@ -275,7 +273,7 @@ abstract class Image
             $height = $max_height;
         }
 
-        $this->_do_crop($width, $height, $offset_x, $offset_y);
+        $this->doCrop((int)$width, (int)$height, (int)$offset_x, (int)$offset_y);
 
         return $this;
     }
@@ -291,12 +289,12 @@ abstract class Image
      *
      * @param integer $degrees degrees to rotate: -360-360
      * @return  $this
-     * @uses    Image::_do_rotate
+     * @uses    Image::doRotate
      */
     public function rotate(int $degrees): Image
     {
         // Make the degrees an integer
-        $degrees = (int)$degrees;
+        $degrees = (int) $degrees;
 
         if ($degrees > 180) {
             do {
@@ -312,7 +310,7 @@ abstract class Image
             } while ($degrees < -180);
         }
 
-        $this->_do_rotate($degrees);
+        $this->doRotate($degrees);
 
         return $this;
     }
@@ -328,7 +326,7 @@ abstract class Image
      *
      * @param integer $direction direction: Image::HORIZONTAL, Image::VERTICAL
      * @return  $this
-     * @uses    Image::_do_flip
+     * @uses    Image::doFlip
      */
     public function flip(int $direction): Image
     {
@@ -337,7 +335,7 @@ abstract class Image
             $direction = Image::VERTICAL;
         }
 
-        $this->_do_flip($direction);
+        $this->doFlip($direction);
 
         return $this;
     }
@@ -350,26 +348,24 @@ abstract class Image
      *
      * @param integer $amount amount to sharpen: 1-100
      * @return  $this
-     * @uses    Image::_do_sharpen
+     * @uses    Image::doSharpen
      */
     public function sharpen(int $amount): Image
     {
         // The amount must be in the range of 1 to 100
         $amount = min(max($amount, 1), 100);
 
-        $this->_do_sharpen($amount);
+        $this->doSharpen($amount);
 
         return $this;
     }
 
-
-    public function blur($sigma): Image
+    public function blur(int $sigma): Image
     {
-        $this->_do_blur($sigma);
+        $this->doBlur($sigma);
 
         return $this;
     }
-
 
     /**
      * Add a reflection to an image. The most opaque part of the reflection
@@ -392,9 +388,9 @@ abstract class Image
      * @param integer $opacity reflection opacity: 0-100
      * @param boolean $fade_in true to fade in, false to fade out
      * @return  $this
-     * @uses    Image::_do_reflection
+     * @uses    Image::doReflection
      */
-    public function reflection($height = null, $opacity = 100, $fade_in = false): Image
+    public function reflection(int $height = null, int $opacity = 100, bool $fade_in = false): Image
     {
         if ($height === null or $height > $this->height) {
             // Use the current height
@@ -404,7 +400,7 @@ abstract class Image
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        $this->_do_reflection($height, $opacity, $fade_in);
+        $this->doReflection($height, $opacity, $fade_in);
 
         return $this;
     }
@@ -425,9 +421,9 @@ abstract class Image
      * @param integer $offset_y offset from the top
      * @param integer $opacity opacity of watermark: 1-100
      * @return  $this
-     * @uses    Image::_do_watermark
+     * @uses    Image::doWatermark
      */
-    public function watermark(Image $watermark, $offset_x = null, $offset_y = null, $opacity = 100): Image
+    public function watermark(Image $watermark, int $offset_x = null, int $offset_y = null, int $opacity = 100): Image
     {
         if ($offset_x === null) {
             // Center the X offset
@@ -454,7 +450,7 @@ abstract class Image
         // The opacity must be in the range of 1 to 100
         $opacity = min(max($opacity, 1), 100);
 
-        $this->_do_watermark($watermark, $offset_x, $offset_y, $opacity);
+        $this->doWatermark($watermark, $offset_x, $offset_y, $opacity);
 
         return $this;
     }
@@ -472,9 +468,9 @@ abstract class Image
      * @param string  $color hexadecimal color value
      * @param integer $opacity background opacity: 0-100
      * @return  $this
-     * @uses    Image::_do_background
+     * @uses    Image::doBackground
      */
-    public function background($color, $opacity = 100): Image
+    public function background(string $color, int $opacity = 100): Image
     {
         if ($color[0] === '#') {
             // Remove the pound
@@ -487,34 +483,34 @@ abstract class Image
         }
 
         // Convert the hex into RGB values
-        list ($r, $g, $b) = array_map('hexdec', str_split($color, 2));
+        [$r, $g, $b] = array_map('hexdec', str_split($color, 2));
 
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        $this->_do_background($r, $g, $b, $opacity);
+        $this->doBackground($r, $g, $b, $opacity);
 
         return $this;
     }
 
-    public function blank($width, $height, $background = [255, 255, 255]): Image
+    public function blank(int $width, int $height, array $background = [255, 255, 255]): Image
     {
-        if (!is_array($background) or count($background) < 3 or count($background) > 3)
+        if (!is_array($background) or count($background) < 3 or count($background) > 3) {
             $background = [255, 255, 255];
+        }
 
-        $this->_do_blank($width, $height, $background);
+        $this->doBlank($width, $height, $background);
         return $this;
     }
-
 
     public function strip(): Image
     {
-        return $this->_do_strip();
+        return $this->doStrip();
     }
 
     public function copy(): Image
     {
-        return $this->_do_copy();
+        return $this->doCopy();
     }
 
     public function quality(int $quality): Image
@@ -543,7 +539,7 @@ abstract class Image
      * @return bool
      * @throws ImageException
      */
-    public function save($file = null, $quality = null): bool
+    public function save(string $file = null, int $quality = null): bool
     {
         if ($file === null) {
             // Overwrite the file
@@ -552,8 +548,9 @@ abstract class Image
             $file = \Mii::resolve($file);
         }
 
-        if ($quality === null)
+        if ($quality === null) {
             $quality = $this->quality;
+        }
 
         if (is_file($file)) {
             if (!is_writable($file)) {
@@ -561,7 +558,7 @@ abstract class Image
             }
         } else {
             // Get the directory of the file
-            $directory = realpath(pathinfo($file, PATHINFO_DIRNAME));
+            $directory = realpath(pathinfo($file, \PATHINFO_DIRNAME));
 
             if (!is_dir($directory) or !is_writable($directory)) {
                 throw new ImageException('Directory must be writable: ' . Debug::path($directory));
@@ -571,7 +568,7 @@ abstract class Image
         // The quality must be in the range of 1 to 100
         $quality = min(max($quality, 1), 100);
 
-        return $this->_do_save($file, $quality);
+        return $this->doSave($file, $quality);
     }
 
     /**
@@ -586,21 +583,21 @@ abstract class Image
      * @param string  $type image type to return: png, jpg, gif, etc
      * @param integer $quality quality of image: 1-100
      * @return  string
-     * @uses    Image::_do_render
+     * @uses    Image::doRender
      */
-    public function render($type = null, $quality = null)
+    public function render(string $type = null, int $quality = null): string
     {
-        if ($quality === null)
+        if ($quality === null) {
             $quality = $this->quality;
+        }
 
         if ($type === null) {
             // Use the current image type
             $type = image_type_to_extension($this->type, false);
         }
 
-        return $this->_do_render($type, $quality);
+        return $this->doRender($type, $quality);
     }
-
 
     /**
      * Execute a resize.
@@ -609,7 +606,7 @@ abstract class Image
      * @param integer $height new height
      * @return  void
      */
-    abstract protected function _do_resize($width, $height);
+    abstract protected function doResize(int $width, int $height): void;
 
     /**
      * Execute a crop.
@@ -620,7 +617,7 @@ abstract class Image
      * @param integer $offset_y offset from the top
      * @return  void
      */
-    abstract protected function _do_crop($width, $height, $offset_x, $offset_y);
+    abstract protected function doCrop(int $width, int $height, int $offset_x, int $offset_y): void;
 
     /**
      * Execute a rotation.
@@ -628,7 +625,7 @@ abstract class Image
      * @param integer $degrees degrees to rotate
      * @return  void
      */
-    abstract protected function _do_rotate($degrees);
+    abstract protected function doRotate(int $degrees): void;
 
     /**
      * Execute a flip.
@@ -636,7 +633,7 @@ abstract class Image
      * @param integer $direction direction to flip
      * @return  void
      */
-    abstract protected function _do_flip($direction);
+    abstract protected function doFlip(int $direction): void;
 
     /**
      * Execute a sharpen.
@@ -644,7 +641,7 @@ abstract class Image
      * @param integer $amount amount to sharpen
      * @return  void
      */
-    abstract protected function _do_sharpen($amount);
+    abstract protected function doSharpen(int $amount): void;
 
     /**
      * Execute a blur.
@@ -652,7 +649,7 @@ abstract class Image
      * @param integer $sigma
      * @return  void
      */
-    abstract protected function _do_blur($sigma);
+    abstract protected function doBlur(int $sigma): void;
 
     /**
      * Execute a reflection.
@@ -662,7 +659,7 @@ abstract class Image
      * @param boolean $fade_in true to fade out, false to fade in
      * @return  void
      */
-    abstract protected function _do_reflection($height, $opacity, $fade_in);
+    abstract protected function doReflection(int $height, int $opacity, bool $fade_in): void;
 
     /**
      * Execute a watermarking.
@@ -673,14 +670,13 @@ abstract class Image
      * @param integer $opacity opacity of watermark
      * @return  void
      */
-    abstract protected function _do_watermark(Image $image, $offset_x, $offset_y, $opacity);
+    abstract protected function doWatermark(Image $image, int $offset_x, int $offset_y, int $opacity): void;
 
+    abstract protected function doBlank(int $width, int $height, array $background): void;
 
-    abstract protected function _do_blank($width, $height, $background);
+    abstract protected function doStrip(): Image;
 
-    abstract protected function _do_strip();
-
-    abstract protected function _do_copy();
+    abstract protected function doCopy();
 
     /**
      * Execute a background.
@@ -691,7 +687,7 @@ abstract class Image
      * @param integer $opacity opacity
      * @return void
      */
-    abstract protected function _do_background($r, $g, $b, $opacity);
+    abstract protected function doBackground(int $r, int $g, int $b, int $opacity): void;
 
     /**
      * Execute a save.
@@ -700,7 +696,7 @@ abstract class Image
      * @param integer $quality quality
      * @return  boolean
      */
-    abstract protected function _do_save($file, $quality);
+    abstract protected function doSave(string $file, int $quality): bool;
 
     /**
      * Execute a render.
@@ -709,6 +705,5 @@ abstract class Image
      * @param integer $quality quality
      * @return  string
      */
-    abstract protected function _do_render($type, $quality);
-
+    abstract protected function doRender(string $type, int $quality): string;
 } // End Image
