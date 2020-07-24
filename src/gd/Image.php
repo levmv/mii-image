@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace mii\image\gd;
 
@@ -7,43 +7,57 @@ use mii\image\ImageException;
 class Image extends \mii\image\Image
 {
     // Temporary image resource
-    protected $_image;
+    protected $image;
 
     // Function name to open Image
-    protected $_create_function;
+    protected string $create_function;
 
     /**
      * Loads the image.
      *
-     * @param   string $file image file path
+     * @param string $file image file path or buffer
+     * @param bool   $is_buffer
      * @throws ImageException
      * @throws \Exception
      */
-    public function __construct($file)
+    public function __construct(string $file, bool $is_buffer = false)
     {
+        if ($is_buffer) {
+
+            $this->image = imagecreatefromstring($file);
+            $info = getimagesizefromstring($file);
+
+            $this->width = $info[0];
+            $this->height = $info[1];
+            $this->type = $info[2];
+            $this->mime = image_type_to_mime_type($this->type);
+
+            return;
+        }
+
         parent::__construct($file);
 
         // Set the image creation function name
         switch ($this->type) {
-            case IMAGETYPE_JPEG:
+            case \IMAGETYPE_JPEG:
                 $create = 'imagecreatefromjpeg';
                 break;
-            case IMAGETYPE_GIF:
+            case \IMAGETYPE_GIF:
                 $create = 'imagecreatefromgif';
                 break;
-            case IMAGETYPE_PNG:
+            case \IMAGETYPE_PNG:
                 $create = 'imagecreatefrompng';
                 break;
         }
 
-        if (!isset($create) OR !function_exists($create)) {
-            throw new ImageException('Installed GD does not support "'.image_type_to_extension($this->type, false).'" images');
+        if (!isset($create) or !function_exists($create)) {
+            throw new ImageException('Installed GD does not support "' . image_type_to_extension($this->type, false) . '" images');
         }
 
         // Save function for future use
-        $this->_create_function = $create;
+        $this->create_function = $create;
 
-        $this->_load_image();
+        $this->loadImage();
     }
 
     /**
@@ -53,9 +67,9 @@ class Image extends \mii\image\Image
      */
     public function __destruct()
     {
-        if (is_resource($this->_image)) {
+        if (is_resource($this->image)) {
             // Free all resources
-            imagedestroy($this->_image);
+            imagedestroy($this->image);
         }
     }
 
@@ -64,66 +78,66 @@ class Image extends \mii\image\Image
      *
      * @return  void
      */
-    protected function _load_image()
+    protected function loadImage(): void
     {
-        if (!is_resource($this->_image)) {
+        if (!is_resource($this->image)) {
             // Gets create function
-            $create = $this->_create_function;
+            $create = $this->create_function;
 
             // Open the temporary image
-            $this->_image = $create($this->file);
+            $this->image = $create($this->file);
 
             // Preserve transparency when saving
-            imagesavealpha($this->_image, true);
+            imagesavealpha($this->image, true);
         }
     }
 
     /**
      * Execute a resize.
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
+     * @param integer $width new width
+     * @param integer $height new height
      * @return  void
      */
-    protected function _do_resize($width, $height)
+    protected function doResize(int $width, int $height): void
     {
         // Presize width and height
         $pre_width = $this->width;
         $pre_height = $this->height;
 
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Test if we can do a resize without resampling to speed up the final resize
-        if ($width > ($this->width / 2) AND $height > ($this->height / 2)) {
+        if ($width > ($this->width / 2) and $height > ($this->height / 2)) {
             // The maximum reduction is 10% greater than the final size
             $reduction_width = round($width * 1.1);
             $reduction_height = round($height * 1.1);
 
-            while ($pre_width / 2 > $reduction_width AND $pre_height / 2 > $reduction_height) {
+            while ($pre_width / 2 > $reduction_width and $pre_height / 2 > $reduction_height) {
                 // Reduce the size using an O(2n) algorithm, until it reaches the maximum reduction
                 $pre_width /= 2;
                 $pre_height /= 2;
             }
 
             // Create the temporary image to copy to
-            $image = $this->_create($pre_width, $pre_height);
+            $image = $this->create($pre_width, $pre_height);
 
-            if (imagecopyresized($image, $this->_image, 0, 0, 0, 0, $pre_width, $pre_height, $this->width, $this->height)) {
+            if (imagecopyresized($image, $this->image, 0, 0, 0, 0, $pre_width, $pre_height, $this->width, $this->height)) {
                 // Swap the new image for the old one
-                imagedestroy($this->_image);
-                $this->_image = $image;
+                imagedestroy($this->image);
+                $this->image = $image;
             }
         }
 
         // Create the temporary image to copy to
-        $image = $this->_create($width, $height);
+        $image = $this->create($width, $height);
 
         // Execute the resize
-        if (imagecopyresampled($image, $this->_image, 0, 0, 0, 0, $width, $height, $pre_width, $pre_height)) {
+        if (imagecopyresampled($image, $this->image, 0, 0, 0, 0, $width, $height, $pre_width, $pre_height)) {
             // Swap the new image for the old one
-            imagedestroy($this->_image);
-            $this->_image = $image;
+            imagedestroy($this->image);
+            $this->image = $image;
 
             // Reset the width and height
             $this->width = imagesx($image);
@@ -134,25 +148,25 @@ class Image extends \mii\image\Image
     /**
      * Execute a crop.
      *
-     * @param   integer $width new width
-     * @param   integer $height new height
-     * @param   integer $offset_x offset from the left
-     * @param   integer $offset_y offset from the top
+     * @param integer $width new width
+     * @param integer $height new height
+     * @param integer $offset_x offset from the left
+     * @param integer $offset_y offset from the top
      * @return  void
      */
-    protected function _do_crop($width, $height, $offset_x, $offset_y)
+    protected function doCrop(int $width, int $height, int $offset_x, int $offset_y): void
     {
         // Create the temporary image to copy to
-        $image = $this->_create($width, $height);
+        $image = $this->create($width, $height);
 
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Execute the crop
-        if (imagecopyresampled($image, $this->_image, 0, 0, $offset_x, $offset_y, $width, $height, $width, $height)) {
+        if (imagecopyresampled($image, $this->image, 0, 0, $offset_x, $offset_y, $width, $height, $width, $height)) {
             // Swap the new image for the old one
-            imagedestroy($this->_image);
-            $this->_image = $image;
+            imagedestroy($this->image);
+            $this->image = $image;
 
             // Reset the width and height
             $this->width = imagesx($image);
@@ -163,19 +177,19 @@ class Image extends \mii\image\Image
     /**
      * Execute a rotation.
      *
-     * @param   integer $degrees degrees to rotate
+     * @param integer $degrees degrees to rotate
      * @return  void
      */
-    protected function _do_rotate($degrees)
+    protected function doRotate(int $degrees): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Transparent black will be used as the background for the uncovered region
-        $transparent = imagecolorallocatealpha($this->_image, 0, 0, 0, 127);
+        $transparent = imagecolorallocatealpha($this->image, 0, 0, 0, 127);
 
         // Rotate, setting the transparent color
-        $image = imagerotate($this->_image, 360 - $degrees, $transparent, 1);
+        $image = imagerotate($this->image, 360 - $degrees, $transparent, 1);
 
         // Save the alpha of the rotated image
         imagesavealpha($image, true);
@@ -184,10 +198,10 @@ class Image extends \mii\image\Image
         $width = imagesx($image);
         $height = imagesy($image);
 
-        if (imagecopymerge($this->_image, $image, 0, 0, 0, 0, $width, $height, 100)) {
+        if (imagecopymerge($this->image, $image, 0, 0, 0, 0, $width, $height, 100)) {
             // Swap the new image for the old one
-            imagedestroy($this->_image);
-            $this->_image = $image;
+            imagedestroy($this->image);
+            $this->image = $image;
 
             // Reset the width and height
             $this->width = $width;
@@ -198,32 +212,32 @@ class Image extends \mii\image\Image
     /**
      * Execute a flip.
      *
-     * @param   integer $direction direction to flip
+     * @param integer $direction direction to flip
      * @return  void
      */
-    protected function _do_flip($direction)
+    protected function doFlip(int $direction): void
     {
         // Create the flipped image
-        $flipped = $this->_create($this->width, $this->height);
+        $flipped = $this->create($this->width, $this->height);
 
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         if ($direction === Image::HORIZONTAL) {
             for ($x = 0; $x < $this->width; $x++) {
                 // Flip each row from top to bottom
-                imagecopy($flipped, $this->_image, $x, 0, $this->width - $x - 1, 0, 1, $this->height);
+                imagecopy($flipped, $this->image, $x, 0, $this->width - $x - 1, 0, 1, $this->height);
             }
         } else {
             for ($y = 0; $y < $this->height; $y++) {
                 // Flip each column from left to right
-                imagecopy($flipped, $this->_image, 0, $y, 0, $this->height - $y - 1, $this->width, 1);
+                imagecopy($flipped, $this->image, 0, $y, 0, $this->height - $y - 1, $this->width, 1);
             }
         }
 
         // Swap the new image for the old one
-        imagedestroy($this->_image);
-        $this->_image = $flipped;
+        imagedestroy($this->image);
+        $this->image = $flipped;
 
         // Reset the width and height
         $this->width = imagesx($flipped);
@@ -233,71 +247,71 @@ class Image extends \mii\image\Image
     /**
      * Execute a sharpen.
      *
-     * @param   integer $amount amount to sharpen
+     * @param integer $amount amount to sharpen
      * @return  void
      */
-    protected function _do_sharpen($amount)
+    protected function doSharpen(int $amount): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Amount should be in the range of 18-10
         $amount = round(abs(-18 + ($amount * 0.08)), 2);
 
         // Gaussian blur matrix
         $matrix = [
-            [-1,    -1,   -1],
+            [-1, -1, -1],
             [-1, $amount, -1],
-            [-1,    -1,   -1]
+            [-1, -1, -1],
         ];
 
         // Perform the sharpen
-        if (imageconvolution($this->_image, $matrix, $amount - 8, 0)) {
+        if (imageconvolution($this->image, $matrix, $amount - 8, 0)) {
             // Reset the width and height
-            $this->width = imagesx($this->_image);
-            $this->height = imagesy($this->_image);
+            $this->width = imagesx($this->image);
+            $this->height = imagesy($this->image);
         }
     }
 
     /**
      * Execute a blur.
      *
-     * @param   integer $sigma
+     * @param integer $sigma
      * @return  void
      */
-    protected function _do_blur($sigma)
+    protected function doBlur(int $sigma): void
     {
         // TODO: sigma
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Gaussian blur matrix
         $matrix = [
             [1, 2, 1],
             [2, 4, 2],
-            [1, 2, 1]
+            [1, 2, 1],
         ];
 
         // Perform the sharpen
-        if (imageconvolution($this->_image, $matrix, 16, 0)) {
+        if (imageconvolution($this->image, $matrix, 16, 0)) {
             // Reset the width and height
-            $this->width = imagesx($this->_image);
-            $this->height = imagesy($this->_image);
+            $this->width = imagesx($this->image);
+            $this->height = imagesy($this->image);
         }
     }
 
     /**
      * Execute a reflection.
      *
-     * @param   integer $height reflection height
-     * @param   integer $opacity reflection opacity
-     * @param   boolean $fade_in true to fade out, false to fade in
+     * @param integer $height reflection height
+     * @param integer $opacity reflection opacity
+     * @param boolean $fade_in true to fade out, false to fade in
      * @return  void
      */
-    protected function _do_reflection($height, $opacity, $fade_in)
+    protected function doReflection(int $height, int $opacity, bool $fade_in): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Convert an opacity range of 0-100 to 127-0
         $opacity = round(abs(($opacity * 127 / 100) - 127));
@@ -311,10 +325,10 @@ class Image extends \mii\image\Image
         }
 
         // Create the reflection image
-        $reflection = $this->_create($this->width, $this->height + $height);
+        $reflection = $this->create($this->width, $this->height + $height);
 
         // Copy the image to the reflection
-        imagecopy($reflection, $this->_image, 0, 0, 0, 0, $this->width, $this->height);
+        imagecopy($reflection, $this->image, 0, 0, 0, 0, $this->width, $this->height);
 
         for ($offset = 0; $height >= $offset; $offset++) {
             // Read the next line down
@@ -332,21 +346,21 @@ class Image extends \mii\image\Image
             }
 
             // Create a single line of the image
-            $line = $this->_create($this->width, 1);
+            $line = $this->create($this->width, 1);
 
             // Copy a single line from the current image into the line
-            imagecopy($line, $this->_image, 0, 0, 0, $src_y, $this->width, 1);
+            imagecopy($line, $this->image, 0, 0, 0, $src_y, $this->width, 1);
 
             // Colorize the line to add the correct alpha level
-            imagefilter($line, IMG_FILTER_COLORIZE, 0, 0, 0, $dst_opacity);
+            imagefilter($line, \IMG_FILTER_COLORIZE, 0, 0, 0, $dst_opacity);
 
             // Copy a the line into the reflection
             imagecopy($reflection, $line, 0, $dst_y, 0, 0, $this->width, 1);
         }
 
         // Swap the new image for the old one
-        imagedestroy($this->_image);
-        $this->_image = $reflection;
+        imagedestroy($this->image);
+        $this->image = $reflection;
 
         // Reset the width and height
         $this->width = imagesx($reflection);
@@ -356,16 +370,16 @@ class Image extends \mii\image\Image
     /**
      * Execute a watermarking.
      *
-     * @param   \mii\image\Image $watermark watermarking Image
-     * @param   integer $offset_x offset from the left
-     * @param   integer $offset_y offset from the top
-     * @param   integer $opacity opacity of watermark
+     * @param \mii\image\Image $watermark watermarking Image
+     * @param integer $offset_x offset from the left
+     * @param integer $offset_y offset from the top
+     * @param integer $opacity opacity of watermark
      * @return  void
      */
-    protected function _do_watermark(\mii\image\Image $watermark, $offset_x, $offset_y, $opacity)
+    protected function doWatermark(\mii\image\Image $watermark, int $offset_x, int $offset_y, int $opacity): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Create the watermark image resource
         $overlay = imagecreatefromstring($watermark->render());
@@ -384,45 +398,45 @@ class Image extends \mii\image\Image
             $color = imagecolorallocatealpha($overlay, 127, 127, 127, $opacity);
 
             // The transparent image will overlay the watermark
-            imagelayereffect($overlay, IMG_EFFECT_OVERLAY);
+            imagelayereffect($overlay, \IMG_EFFECT_OVERLAY);
 
             // Fill the background with the transparent color
             imagefilledrectangle($overlay, 0, 0, $width, $height, $color);
         }
 
         // Alpha blending must be enabled on the background!
-        imagealphablending($this->_image, true);
+        imagealphablending($this->image, true);
 
-        if (imagecopy($this->_image, $overlay, $offset_x, $offset_y, 0, 0, $width, $height)) {
+        if (imagecopy($this->image, $overlay, $offset_x, $offset_y, 0, 0, $width, $height)) {
             // Destroy the overlay image
             imagedestroy($overlay);
         }
     }
 
-    protected function _do_blank($width, $height, $background)
+    protected function doBlank(int $width, int $height, array $background): void
     {
-        $this->_image = imagecreatetruecolor($width, $height);
+        $this->image = imagecreatetruecolor($width, $height);
 
         // Set background
-        $white = imagecolorallocate($this->_image, $background[0], $background[1], $background[2]);
-        imagefill($this->_image, 0, 0, $white);
+        $white = imagecolorallocate($this->image, $background[0], $background[1], $background[2]);
+        imagefill($this->image, 0, 0, $white);
 
-        $this->width = imagesx($this->_image);
-        $this->height = imagesy($this->_image);
+        $this->width = imagesx($this->image);
+        $this->height = imagesy($this->image);
     }
 
-    protected function _do_strip()
+    protected function doStrip(): \mii\image\Image
     {
         return $this;
     }
 
-    protected function _do_copy()
+    protected function doCopy()
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         $copy = imagecreatetruecolor($this->width, $this->height);
-        imagecopy($copy, $this->_image, 0, 0, 0, 0, $this->width, $this->height);
+        imagecopy($copy, $this->image, 0, 0, 0, 0, $this->width, $this->height);
 
         return $copy;
     }
@@ -430,22 +444,22 @@ class Image extends \mii\image\Image
     /**
      * Execute a background.
      *
-     * @param   integer $r red
-     * @param   integer $g green
-     * @param   integer $b blue
-     * @param   integer $opacity opacity
+     * @param integer $r red
+     * @param integer $g green
+     * @param integer $b blue
+     * @param integer $opacity opacity
      * @return void
      */
-    protected function _do_background($r, $g, $b, $opacity)
+    protected function doBackground(int $r, int $g, int $b, int $opacity): void
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Convert an opacity range of 0-100 to 127-0
         $opacity = round(abs(($opacity * 127 / 100) - 127));
 
         // Create a new background
-        $background = $this->_create($this->width, $this->height);
+        $background = $this->create($this->width, $this->height);
 
         // Allocate the color
         $color = imagecolorallocatealpha($background, $r, $g, $b, $opacity);
@@ -457,36 +471,36 @@ class Image extends \mii\image\Image
         imagealphablending($background, true);
 
         // Copy the image onto a white background to remove all transparency
-        if (imagecopy($background, $this->_image, 0, 0, 0, 0, $this->width, $this->height)) {
+        if (imagecopy($background, $this->image, 0, 0, 0, 0, $this->width, $this->height)) {
             // Swap the new image for the old one
-            imagedestroy($this->_image);
-            $this->_image = $background;
+            imagedestroy($this->image);
+            $this->image = $background;
         }
     }
 
     /**
      * Execute a save.
      *
-     * @param   string $file new image filename
-     * @param   integer $quality quality
+     * @param string $file new image filename
+     * @param integer $quality quality
      * @return  boolean
      * @throws ImageException
      */
-    protected function _do_save($file, $quality)
+    protected function doSave(string $file, int $quality): bool
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Get the extension of the file
-        $extension = pathinfo($file, PATHINFO_EXTENSION);
+        $extension = pathinfo($file, \PATHINFO_EXTENSION);
 
         // Get the save function and IMAGETYPE
-        list($save, $type) = $this->_save_function($extension, $quality);
+        [$save, $type] = $this->saveFunction($extension, $quality);
 
         // Save the image to a file
-        $status = isset($quality) ? $save($this->_image, $file, $quality) : $save($this->_image, $file);
+        $status = isset($quality) ? $save($this->image, $file, $quality) : $save($this->image, $file);
 
-        if ($status === true AND $type !== $this->type) {
+        if ($status === true and $type !== $this->type) {
             // Reset the image type and mime type
             $this->type = $type;
             $this->mime = image_type_to_mime_type($type);
@@ -498,26 +512,26 @@ class Image extends \mii\image\Image
     /**
      * Execute a render.
      *
-     * @param   string $type image type: png, jpg, gif, etc
-     * @param   integer $quality quality
+     * @param string $type image type: png, jpg, gif, etc
+     * @param integer $quality quality
      * @return  string
      * @throws ImageException
      */
-    protected function _do_render($type, $quality)
+    protected function doRender(string $type, int $quality): string
     {
         // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Get the save function and IMAGETYPE
-        list($save, $type) = $this->_save_function($type, $quality);
+        [$save, $type] = $this->saveFunction($type, $quality);
 
         // Capture the output
         ob_start();
 
         // Render the image
-        $status = isset($quality) ? $save($this->_image, null, $quality) : $save($this->_image, null);
+        $status = isset($quality) ? $save($this->image, null, $quality) : $save($this->image, null);
 
-        if ($status === true AND $type !== $this->type) {
+        if ($status === true and $type !== $this->type) {
             // Reset the image type and mime type
             $this->type = $type;
             $this->mime = image_type_to_mime_type($type);
@@ -530,12 +544,12 @@ class Image extends \mii\image\Image
      * Get the GD saving function and image type for this extension.
      * Also normalizes the quality setting
      *
-     * @param   string $extension image type: png, jpg, etc
-     * @param   integer $quality image quality
+     * @param string $extension image type: png, jpg, etc
+     * @param integer $quality image quality
      * @return  array    save function, IMAGETYPE_* constant
      * @throws  ImageException
      */
-    protected function _save_function($extension, & $quality)
+    protected function saveFunction(string $extension, int &$quality): array
     {
         if (!$extension) {
             // Use the current image type
@@ -548,12 +562,12 @@ class Image extends \mii\image\Image
             case 'jpeg':
                 // Save a JPG file
                 $save = 'imagejpeg';
-                $type = IMAGETYPE_JPEG;
+                $type = \IMAGETYPE_JPEG;
                 break;
             case 'gif':
                 // Save a GIF file
                 $save = 'imagegif';
-                $type = IMAGETYPE_GIF;
+                $type = \IMAGETYPE_GIF;
 
                 // GIFs do not a quality setting
                 $quality = null;
@@ -561,7 +575,7 @@ class Image extends \mii\image\Image
             case 'png':
                 // Save a PNG file
                 $save = 'imagepng';
-                $type = IMAGETYPE_PNG;
+                $type = \IMAGETYPE_PNG;
 
                 // Use a compression level of 9 (does not affect quality!)
                 $quality = 9;
@@ -577,11 +591,11 @@ class Image extends \mii\image\Image
     /**
      * Create an empty image with the given width and height.
      *
-     * @param   integer $width image width
-     * @param   integer $height image height
+     * @param integer $width image width
+     * @param integer $height image height
      * @return  resource
      */
-    protected function _create($width, $height)
+    protected function create(int $width, int $height)
     {
         // Create an empty image
         $image = imagecreatetruecolor($width, $height);

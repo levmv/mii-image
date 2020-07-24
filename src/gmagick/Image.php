@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace mii\image\gmagick;
 
@@ -9,28 +9,39 @@ class Image extends \mii\image\Image
     /**
      * @var  \Gmagick  image magick object
      */
-    protected $im;
-
+    protected $image;
 
     /**
      * Runs Image::check and loads the image.
      *
-     * @param $file
-     * @throws \Exception
+     * @param      $file
+     * @param bool $is_buffer
      * @throws \GmagickException
+     * @throws \Exception
      */
-    public function __construct($file)
+    public function __construct($file, bool $is_buffer = false)
     {
-        if ($file === null) {
-            $this->im = new \Gmagick;
-        } elseif (is_object($file)) {
-            $this->im = $file;
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
+        if ($is_buffer) {
 
+            $this->image = (new \Gmagick())->readimageblob($file);
+
+            $this->width = $this->image->getimagewidth();
+            $this->height = $this->image->getimageheight();
+            $this->type = $this->image->getimagetype();
+            $this->mime = image_type_to_mime_type($this->type);
+
+            return;
+        }
+
+        if ($file === null) {
+            $this->image = new \Gmagick;
+        } elseif (is_object($file)) {
+            $this->image = $file;
+            $this->width = $this->image->getimagewidth();
+            $this->height = $this->image->getimageheight();
         } else {
             parent::__construct($file);
-            $this->im = new \Gmagick($file);
+            $this->image = new \Gmagick($file);
         }
     }
 
@@ -42,70 +53,58 @@ class Image extends \mii\image\Image
      */
     public function __destruct()
     {
-        $this->im->clear();
-        $this->im->destroy();
+        $this->image->clear();
+        $this->image->destroy();
     }
 
     public function get_raw_image()
     {
-        return $this->im;
+        return $this->image;
     }
 
-    protected function _do_resize($width, $height)
+    protected function doResize(int $width, int $height): void
     {
-        if ($this->im->resizeimage($width, $height, \Gmagick::FILTER_LANCZOS, 1.01)) {
+        if ($this->image->resizeimage($width, $height, \Gmagick::FILTER_LANCZOS, 1.01)) {
             // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
-
-            return true;
+            $this->width = $this->image->getimagewidth();
+            $this->height = $this->image->getimageheight();
         }
-
-        return false;
     }
 
-    protected function _do_crop($width, $height, $offset_x, $offset_y)
+    protected function doCrop(int $width, int $height, int $offset_x, int $offset_y): void
     {
-        if ($this->im->cropimage($width, $height, $offset_x, $offset_y)) {
+        if ($this->image->cropimage($width, $height, $offset_x, $offset_y)) {
             // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
+            $this->width = $this->image->getimagewidth();
+            $this->height = $this->image->getimageheight();
 
             // Trim off hidden areas
             //$this->im->cropimage($this->width, $this->height, 0, 0);
-
-            return true;
         }
-
-        return false;
     }
 
-    protected function _do_rotate($degrees)
+    protected function doRotate(int $degrees): void
     {
-        if ($this->im->rotateimage(new \GmagickPixel('transparent'), $degrees)) {
+        if ($this->image->rotateimage(new \GmagickPixel('transparent'), $degrees)) {
             // Reset the width and height
-            $this->width = $this->im->getimagewidth();
-            $this->height = $this->im->getimageheight();
+            $this->width = $this->image->getimagewidth();
+            $this->height = $this->image->getimageheight();
 
             // Trim off hidden areas
             //$this->im->setImagePage($this->width, $this->height, 0, 0);
-
-            return true;
         }
-
-        return false;
     }
 
-    protected function _do_flip($direction)
+    protected function doFlip(int $direction): void
     {
         if ($direction === Image::HORIZONTAL) {
-            return $this->im->flopImage();
+            $this->image->flopImage();
         } else {
-            return $this->im->flipImage();
+            $this->image->flipImage();
         }
     }
 
-    protected function _do_sharpen($amount)
+    protected function doSharpen(int $amount): void
     {
         // IM not support $amount under 5 (0.15)
         $amount = ($amount < 5) ? 5 : $amount;
@@ -113,18 +112,18 @@ class Image extends \mii\image\Image
         // Amount should be in the range of 0.0 to 3.0
         $amount = ($amount * 3.0) / 100;
 
-        return $this->im->sharpenImage(0, $amount);
+        $this->image->sharpenImage(0, $amount);
     }
 
-    protected function _do_blur($sigma)
+    protected function doBlur(int $sigma): void
     {
-        return $this->im->blurimage(1, $sigma);
+        $this->image->blurimage(1, $sigma);
     }
 
-    protected function _do_reflection($height, $opacity, $fade_in)
+    protected function doReflection(int $height, int $opacity, bool $fade_in): void
     {
         // Clone the current image and flip it for reflection
-        $reflection = $this->im->clone();
+        $reflection = $this->image->clone();
         $reflection->flipImage();
 
         // Crop the reflection to the selected height
@@ -132,7 +131,7 @@ class Image extends \mii\image\Image
         $reflection->setImagePage($this->width, $height, 0, 0);
 
         // Select the fade direction
-        $direction = array('transparent', 'black');
+        $direction = ['transparent', 'black'];
 
         if ($fade_in) {
             // Change the direction of the fade
@@ -160,37 +159,34 @@ class Image extends \mii\image\Image
         // $image->setImageBackgroundColor(new ImagickPixel('transparent'));
 
         // Match the colorspace between the two images before compositing
-        $image->setColorspace($this->im->getColorspace());
+        $image->setColorspace($this->image->getColorspace());
 
         // Place the image and reflection into the container
-        if ($image->compositeImage($this->im, Imagick::COMPOSITE_SRC, 0, 0)
-            AND $image->compositeImage($reflection, Imagick::COMPOSITE_OVER, 0, $this->height)) {
+        if ($image->compositeImage($this->image, Imagick::COMPOSITE_SRC, 0, 0)
+            and $image->compositeImage($reflection, Imagick::COMPOSITE_OVER, 0, $this->height)) {
             // Replace the current image with the reflected image
-            $this->im = $image;
+            $this->image = $image;
 
             // Reset the width and height
-            $this->width = $this->im->getImageWidth();
-            $this->height = $this->im->getImageHeight();
-
-            return true;
+            $this->width = $this->image->getImageWidth();
+            $this->height = $this->image->getImageHeight();
         }
-
-        return false;
     }
 
-    protected function _do_watermark(\mii\image\Image $image, $offset_x, $offset_y, $opacity)
+    protected function doWatermark(\mii\image\Image $image, int $offset_x, int $offset_y, int $opacity): void
     {
         $image->get_raw_image()->setImageBackgroundColor(new \GmagickPixel('transparent'));
         $image->get_raw_image()->setimagecolorspace(\Gmagick::COLORSPACE_TRANSPARENT);
 
-        return $this->im->compositeimage(
+        $this->image->compositeimage(
             $image->get_raw_image(),
             \Gmagick::COMPOSITE_DEFAULT,
-            $offset_x, $offset_y
+            $offset_x,
+            $offset_y
         );
     }
 
-    protected function _do_background($r, $g, $b, $opacity)
+    protected function doBackground(int $r, int $g, int $b, int $opacity): void
     {
         // Create a RGB color for the background
         $color = sprintf('rgb(%d, %d, %d)', $r, $g, $b);
@@ -200,48 +196,44 @@ class Image extends \mii\image\Image
         $background->newImage($this->width, $this->height, (new \GmagickPixel($color))->getcolor(false));
 
         // Match the colorspace between the two images before compositing
-        $background->setimagecolorspace($this->im->getimagecolorspace());
+        $background->setimagecolorspace($this->image->getimagecolorspace());
 
-        if ($background->compositeimage($this->im, \Gmagick::COMPOSITE_DISSOLVE, 0, 0)) {
+        if ($background->compositeimage($this->image, \Gmagick::COMPOSITE_DISSOLVE, 0, 0)) {
             // Replace the current image with the new image
-            $this->im = $background;
-            return true;
+            $this->image = $background;
         }
-
-        return false;
     }
 
-    protected function _do_strip()
+    protected function doStrip(): \mii\image\Image
     {
-        $this->im->stripimage();
+        $this->image->stripimage();
         return $this;
     }
 
-    protected function _do_save($file, $quality)
+    protected function doSave(string $file, int $quality): bool
     {
         // Get the image format and type
-        list($format, $type) = $this->_get_imagetype(pathinfo($file, PATHINFO_EXTENSION));
+        [$format, $type] = $this->getImageType(pathinfo($file, \PATHINFO_EXTENSION));
 
-        $from_format = strtolower($this->im->getimageformat());
+        $from_format = strtolower($this->image->getimageformat());
 
         if ($from_format !== $format && $format === 'jpeg') {
-
             $background = new \Gmagick;
-            $background->newImage($this->width, $this->height, "#FFFFFF");
+            $background->newImage($this->width, $this->height, '#FFFFFF');
 
-            if ($background->compositeimage($this->im, \Gmagick::COMPOSITE_OVER, 0, 0)) {
+            if ($background->compositeimage($this->image, \Gmagick::COMPOSITE_OVER, 0, 0)) {
                 // Replace the current image with the new image
-                $this->im = $background;
+                $this->image = $background;
             }
         }
 
         // Set the output image type
-        $this->im->setimageformat($format);
+        $this->image->setimageformat($format);
 
         // Set the output quality
-        $this->im->setCompressionQuality($quality);
+        $this->image->setCompressionQuality($quality);
 
-        if ($this->im->writeimage($file)) {
+        if ($this->image->writeimage($file)) {
             // Reset the image type and mime type
             $this->type = $type;
             $this->mime = image_type_to_mime_type($type);
@@ -252,60 +244,62 @@ class Image extends \mii\image\Image
         return false;
     }
 
-    protected function _do_blank($width, $height, $background)
+    protected function doBlank(int $width, int $height, array $background): void
     {
         $background = 'rgb(' . implode(',', $background) . ')';
 
-        $this->im = $this->im->newimage($width, $height, $background);
-        $this->width = $this->im->getimagewidth();
-        $this->height = $this->im->getimageheight();
+        $this->image = $this->image->newimage($width, $height, $background);
+        $this->width = $this->image->getimagewidth();
+        $this->height = $this->image->getimageheight();
     }
 
-    public function _do_copy()
+    public function doCopy()
     {
-        return new self(clone $this->im);
+        return new self(clone $this->image);
     }
 
-    protected function _do_render($type, $quality)
+    protected function doRender(string $type, int $quality): string
     {
         // Get the image format and type
-        list($format, $type) = $this->_get_imagetype($type);
+        [$format, $type] = $this->getImageType($type);
 
         // Set the output image type
-        $this->im->setimageformat($format);
+        $this->image->setimageformat($format);
 
         // Set the output quality
-        $this->im->setCompressionQuality($quality);
+        $this->image->setCompressionQuality($quality);
 
         // Reset the image type and mime type
         $this->type = $type;
         $this->mime = image_type_to_mime_type($type);
 
-        return (string)$this->im;
+        return (string)$this->image;
     }
 
     /**
      * Get the image type and format for an extension.
      *
-     * @param   string $extension image extension: png, jpg, etc
+     * @param string $extension image extension: png, jpg, etc
      * @return  array
      * @throws ImageException
      */
-    protected function _get_imagetype($extension)
+    protected function getImageType($extension)
     {
         // Normalize the extension to a format
         $format = strtolower($extension);
-        if ($format === 'jpg') $format = 'jpeg';
+        if ($format === 'jpg') {
+            $format = 'jpeg';
+        }
 
         switch ($format) {
             case 'jpeg':
-                $type = IMAGETYPE_JPEG;
+                $type = \IMAGETYPE_JPEG;
                 break;
             case 'gif':
-                $type = IMAGETYPE_GIF;
+                $type = \IMAGETYPE_GIF;
                 break;
             case 'png':
-                $type = IMAGETYPE_PNG;
+                $type = \IMAGETYPE_PNG;
                 break;
             default:
                 throw new ImageException("Installed Gmagick does not support $extension images");
