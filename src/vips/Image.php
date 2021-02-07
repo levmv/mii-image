@@ -213,7 +213,23 @@ class Image extends \mii\image\Image
 
     protected function _do_rotate($degrees)
     {
-
+        // todo: bg, alpha, etc
+        switch ($degrees) {
+            case 45:
+                $this->image = $this->image->rot45();
+                break;
+            case 90:
+                $this->image = $this->image->rot90();
+                break;
+            case 180:
+                $this->image = $this->image->rot180();
+                break;
+            case 270:
+                $this->image = $this->image->rot270();
+                break;
+            default:
+                $this->image = $this->image->rotate($degrees);
+        }
     }
 
     protected function _do_flip($direction)
