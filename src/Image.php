@@ -1,18 +1,10 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace mii\image;
 
 
 abstract class Image
 {
-    // Resizing constraints
-    public const NONE = 0x01;
-    public const WIDTH = 0x02;
-    public const HEIGHT = 0x03;
-    public const AUTO = 0x04;
-    public const INVERSE = 0x05;
-    public const PRECISE = 0x06;
-
     // Flipping directions
     public const HORIZONTAL = 0x11;
     public const VERTICAL = 0x12;
@@ -20,30 +12,19 @@ abstract class Image
     /**
      * @var  string  image file path
      */
-    public $file;
+    public string $file;
 
-    /**
-     * @var  integer  image width
-     */
     public int $width;
-
-    /**
-     * @var  integer  image height
-     */
     public int $height;
+
+    public bool $needStrip = false;
 
     /**
      * @var  integer  one of the IMAGETYPE_* constants
      */
     public int $type;
 
-    /**
-     * @var  string  mime type of the image
-     */
-    public string $mime;
-
-
-    public int $quality = 100;
+    public int $quality = 98;
 
     /**
      * Loads information about the image. Will throw an exception if the image
@@ -57,34 +38,30 @@ abstract class Image
     {
         try {
             // Get the real path to the file
-            $realfile = realpath($file);
+            $realFile = realpath($file);
 
             // Get the image information
-            $info = getimagesize($realfile);
+            $info = getimagesize($realFile);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable) {
             // Ignore all errors while reading the image
         }
 
-        if (empty($realfile) || empty($info)) {
-            throw new ImageException('Not an image or invalid image: ' . \mii\util\Debug::path($file));
+        if (empty($realFile) || empty($info)) {
+            throw new \RuntimeException('Not an image or invalid image: ' . \mii\util\Debug::path($file));
         }
 
-        // Store the image information
-        $this->file = $realfile;
+        $this->file = $realFile;
         $this->width = $info[0];
         $this->height = $info[1];
         $this->type = $info[2];
-        $this->mime = image_type_to_mime_type($this->type);
     }
 
     /**
      * Render the current image.
      *
-     *     echo $image;
-     *
      * [!!] The output of this function is binary and must be rendered with the
-     * appropriate Content-Type header or it will not be displayed correctly!
+     * appropriate Content-Type header, or it will not be displayed correctly!
      *
      * @return  string
      */
@@ -108,104 +85,41 @@ abstract class Image
      * Resize the image to the given size. Either the width or the height can
      * be omitted and the image will be resized proportionally.
      *
-     *     // Resize to 200 pixels on the shortest side
-     *     $image->resize(200, 200);
-     *
-     *     // Resize to 200x200 pixels, keeping aspect ratio
-     *     $image->resize(200, 200, Image::INVERSE);
-     *
-     *     // Resize to 500 pixel width, keeping aspect ratio
-     *     $image->resize(500, null);
-     *
-     *     // Resize to 500 pixel height, keeping aspect ratio
-     *     $image->resize(null, 500);
-     *
-     *     // Resize to 200x500 pixels, ignoring aspect ratio
-     *     $image->resize(200, 500, Image::NONE);
-     *
-     * @param integer $width new width
-     * @param integer $height new height
-     * @param integer $master master dimension
+     * @param int|null $width new width
+     * @param int|null $height new height
+     * @param bool $upscale
+     * @param bool $inverse
      * @return  $this
-     * @uses    Image::_do_resize
      */
-    public function resize(int $width = null, int $height = null, int $master = null): Image
+    public function resize(int $width = null, int $height = null, bool $upscale = false, bool $inverse = false): Image
     {
-        if ($master === null) {
-            // Choose the master dimension automatically
-            $master = Image::AUTO;
-        }
-        // Image::WIDTH and Image::HEIGHT deprecated. You can use it in old projects,
-        // but in new you must pass empty value for non-master dimension
-        elseif ($master == Image::WIDTH and !empty($width)) {
-            $master = Image::AUTO;
-
-            // Set empty height for backward compatibility
-            $height = null;
-        } elseif ($master == Image::HEIGHT and !empty($height)) {
-            $master = Image::AUTO;
-
-            // Set empty width for backward compatibility
-            $width = null;
+        if ($width === null) {
+            $widthMain = false;
+        } elseif ($height === null) {
+            $widthMain = true;
+        } else {
+            $widthMain = ($this->width / $width) > ($this->height / $height);
         }
 
-        if (empty($width)) {
-            if ($master === Image::NONE) {
-                // Use the current width
-                $width = $this->width;
-            } else {
-                // If width not set, master will be height
-                $master = Image::HEIGHT;
-            }
+        if($inverse) {
+            $widthMain = !$widthMain;
         }
 
-        if (empty($height)) {
-            if ($master === Image::NONE) {
-                // Use the current height
-                $height = $this->height;
-            } else {
-                // If height not set, master will be width
-                $master = Image::WIDTH;
-            }
-        }
-
-        switch ($master) {
-            case Image::AUTO:
-                // Choose direction with the greatest reduction ratio
-                $master = ($this->width / $width) > ($this->height / $height) ? Image::WIDTH : Image::HEIGHT;
-                break;
-            case Image::INVERSE:
-                // Choose direction with the minimum reduction ratio
-                $master = ($this->width / $width) > ($this->height / $height) ? Image::HEIGHT : Image::WIDTH;
-                break;
-        }
-
-        switch ($master) {
-            case Image::WIDTH:
-                // Recalculate the height based on the width proportions
-                $height = $this->height * $width / $this->width;
-                break;
-            case Image::HEIGHT:
-                // Recalculate the width based on the height proportions
-                $width = $this->width * $height / $this->height;
-                break;
-            case Image::PRECISE:
-                // Resize to precise size
-                $ratio = $this->width / $this->height;
-
-                if ($width / $height > $ratio) {
-                    $height = $this->height * $width / $this->width;
-                } else {
-                    $width = $this->width * $height / $this->height;
-                }
-                break;
+        if($widthMain) {
+            // Recalculate the height based on the width proportions
+            $height = $this->height * $width / $this->width;
+        } else {
+            // Recalculate the width based on the height proportions
+            $width = $this->width * $height / $this->height;
         }
 
         // Convert the width and height to integers, minimum value is 1px
         $width = max(round($width), 1);
         $height = max(round($height), 1);
 
-        $this->_do_resize($width, $height);
+        if($upscale || ($width < $this->width && $height < $this->height)) {
+            $this->doResize($width, $height);
+        }
 
         return $this;
     }
@@ -222,10 +136,9 @@ abstract class Image
      *
      * @param integer $width new width
      * @param integer $height new height
-     * @param mixed   $offset_x offset from the left
-     * @param mixed   $offset_y offset from the top
+     * @param mixed $offset_x offset from the left
+     * @param mixed $offset_y offset from the top
      * @return  $this
-     * @uses    Image::_do_crop
      */
     public function crop(int $width, int $height, int $offset_x = null, int $offset_y = null): Image
     {
@@ -275,7 +188,7 @@ abstract class Image
             $height = $max_height;
         }
 
-        $this->_do_crop($width, $height, $offset_x, $offset_y);
+        $this->doCrop($width, $height, $offset_x, $offset_y);
 
         return $this;
     }
@@ -291,13 +204,9 @@ abstract class Image
      *
      * @param integer $degrees degrees to rotate: -360-360
      * @return  $this
-     * @uses    Image::_do_rotate
      */
     public function rotate(int $degrees): Image
     {
-        // Make the degrees an integer
-        $degrees = (int)$degrees;
-
         if ($degrees > 180) {
             do {
                 // Keep subtracting full circles until the degrees have normalized
@@ -312,7 +221,7 @@ abstract class Image
             } while ($degrees < -180);
         }
 
-        $this->_do_rotate($degrees);
+        $this->doRotate($degrees);
 
         return $this;
     }
@@ -320,24 +229,12 @@ abstract class Image
     /**
      * Flip the image along the horizontal or vertical axis.
      *
-     *     // Flip the image from top to bottom
-     *     $image->flip(Image::HORIZONTAL);
-     *
-     *     // Flip the image from left to right
-     *     $image->flip(Image::VERTICAL);
-     *
      * @param integer $direction direction: Image::HORIZONTAL, Image::VERTICAL
      * @return  $this
-     * @uses    Image::_do_flip
      */
-    public function flip(int $direction): Image
+    public function flip(int $direction = Image::VERTICAL): Image
     {
-        if ($direction !== Image::HORIZONTAL) {
-            // Flip vertically
-            $direction = Image::VERTICAL;
-        }
-
-        $this->_do_flip($direction);
+        $this->doFlip($direction);
 
         return $this;
     }
@@ -345,27 +242,23 @@ abstract class Image
     /**
      * Sharpen the image by a given amount.
      *
-     *     // Sharpen the image by 20%
-     *     $image->sharpen(20);
-     *
      * @param integer $amount amount to sharpen: 1-100
      * @return  $this
-     * @uses    Image::_do_sharpen
      */
     public function sharpen(int $amount): Image
     {
         // The amount must be in the range of 1 to 100
         $amount = min(max($amount, 1), 100);
 
-        $this->_do_sharpen($amount);
+        $this->doSharpen($amount);
 
         return $this;
     }
 
 
-    public function blur($sigma): Image
+    public function blur(int $sigma): Image
     {
-        $this->_do_blur($sigma);
+        $this->doBlur($sigma);
 
         return $this;
     }
@@ -388,13 +281,13 @@ abstract class Image
      * [!!] By default, the reflection will be go from transparent at the top
      * to opaque at the bottom.
      *
-     * @param integer $height reflection height
+     * @param int|null $height reflection height
      * @param integer $opacity reflection opacity: 0-100
-     * @param boolean $fade_in true to fade in, false to fade out
+     * @param boolean $fadeIn true to fade in, false to fade out
      * @return  $this
-     * @uses    Image::_do_reflection
+     * @uses    Image::doReflection
      */
-    public function reflection($height = null, $opacity = 100, $fade_in = false): Image
+    public function reflection(int $height = null, int $opacity = 100, bool $fadeIn = false): Image
     {
         if ($height === null or $height > $this->height) {
             // Use the current height
@@ -404,7 +297,7 @@ abstract class Image
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        $this->_do_reflection($height, $opacity, $fade_in);
+        $this->doReflection($height, $opacity, $fadeIn);
 
         return $this;
     }
@@ -416,26 +309,18 @@ abstract class Image
      * If no offset is specified, the center of the axis will be used.
      * If an offset of true is specified, the bottom of the axis will be used.
      *
-     *     // Add a watermark to the bottom right of the image
-     *     $mark = Image::factory('upload/watermark.png');
-     *     $image->watermark($mark, true, true);
-     *
-     * @param Image   $watermark watermark Image instance
-     * @param integer $offset_x offset from the left
-     * @param integer $offset_y offset from the top
+     * @param Image $watermark watermark Image instance
+     * @param int|null $offset_x offset from the left
+     * @param int|null $offset_y offset from the top
      * @param integer $opacity opacity of watermark: 1-100
      * @return  $this
-     * @uses    Image::_do_watermark
      */
-    public function watermark(Image $watermark, $offset_x = null, $offset_y = null, $opacity = 100): Image
+    public function watermark(Image $watermark, int $offset_x = null, int $offset_y = null, int $opacity = 100): Image
     {
         if ($offset_x === null) {
             // Center the X offset
             $offset_x = round(($this->width - $watermark->width) / 2);
-        } elseif ($offset_x === true) {
-            // Bottom the X offset
-            $offset_x = $this->width - $watermark->width;
-        } elseif ($offset_x < 0) {
+        } elseif ($offset_x <= 0) {
             // Set the X offset from the right
             $offset_x = $this->width - $watermark->width + $offset_x;
         }
@@ -443,10 +328,7 @@ abstract class Image
         if ($offset_y === null) {
             // Center the Y offset
             $offset_y = round(($this->height - $watermark->height) / 2);
-        } elseif ($offset_y === true) {
-            // Bottom the Y offset
-            $offset_y = $this->height - $watermark->height;
-        } elseif ($offset_y < 0) {
+        } elseif ($offset_y <= 0) {
             // Set the Y offset from the bottom
             $offset_y = $this->height - $watermark->height + $offset_y;
         }
@@ -454,7 +336,7 @@ abstract class Image
         // The opacity must be in the range of 1 to 100
         $opacity = min(max($opacity, 1), 100);
 
-        $this->_do_watermark($watermark, $offset_x, $offset_y, $opacity);
+        $this->doWatermark($watermark, $offset_x, $offset_y, $opacity);
 
         return $this;
     }
@@ -469,12 +351,11 @@ abstract class Image
      *     // Make the image background black with 50% opacity
      *     $image->background('#000', 50);
      *
-     * @param string  $color hexadecimal color value
+     * @param string $color hexadecimal color value
      * @param integer $opacity background opacity: 0-100
      * @return  $this
-     * @uses    Image::_do_background
      */
-    public function background($color, $opacity = 100): Image
+    public function background(string $color, int $opacity = 100): Image
     {
         if ($color[0] === '#') {
             // Remove the pound
@@ -492,34 +373,37 @@ abstract class Image
         // The opacity must be in the range of 0 to 100
         $opacity = min(max($opacity, 0), 100);
 
-        $this->_do_background($r, $g, $b, $opacity);
+        $this->doBackground($r, $g, $b, $opacity);
 
         return $this;
     }
 
-    public function blank($width, $height, $background = [255, 255, 255]): Image
+    public function blank(int $width, int $height, array $background = [255, 255, 255]): Image
     {
-        if (!is_array($background) or count($background) < 3 or count($background) > 3)
+        if (!is_array($background)) {
             $background = [255, 255, 255];
+        }
+        assert(count($background) === 3);
 
-        $this->_do_blank($width, $height, $background);
+        $this->doBlank($width, $height, $background);
         return $this;
     }
 
 
-    public function strip(): Image
+    public function strip(bool $enable = true): Image
     {
-        return $this->_do_strip();
+        $this->needStrip = $enable;
+        return $this;
     }
 
     public function copy(): Image
     {
-        return $this->_do_copy();
+        return $this->doCopy();
     }
 
     public function quality(int $quality): Image
     {
-        $this->quality = $quality;
+        $this->quality = min(max($quality, 1), 100);
         return $this;
     }
 
@@ -538,40 +422,42 @@ abstract class Image
      * [!!] If the file does not exist, and the directory is not writable, an
      * exception will be thrown.
      *
-     * @param string  $file new image path
-     * @param integer $quality quality of image: 1-100
+     * @param string|null $file new image path
+     * @param integer|null $quality quality of image: 1-100
+     * @param int|null $type
      * @return bool
-     * @throws ImageException
      */
-    public function save($file = null, $quality = null): bool
+    public function save(string $file = null, int $quality = null, int $type = null): bool
     {
         if ($file === null) {
             // Overwrite the file
             $file = $this->file;
+            $type = $this->type;
         } else {
             $file = \Mii::resolve($file);
+            if($type === null) {
+                $type = $this->extensionToImageType(pathinfo($file, PATHINFO_EXTENSION));
+            }
         }
 
-        if ($quality === null)
-            $quality = $this->quality;
+        if ($quality !== null) {
+            $this->quality($quality);
+        }
 
         if (is_file($file)) {
             if (!is_writable($file)) {
-                throw new ImageException('File must be writable: ' . Debug::path($file));
+                throw new \RuntimeException('File must be writable: ' . \mii\util\Debug::path($file));
             }
         } else {
             // Get the directory of the file
             $directory = realpath(pathinfo($file, PATHINFO_DIRNAME));
 
-            if (!is_dir($directory) or !is_writable($directory)) {
-                throw new ImageException('Directory must be writable: ' . Debug::path($directory));
+            if (!is_dir($directory) || !is_writable($directory)) {
+                throw new \RuntimeException('Directory must be writable: ' . \mii\util\Debug::path($directory));
             }
         }
 
-        // The quality must be in the range of 1 to 100
-        $quality = min(max($quality, 1), 100);
-
-        return $this->_do_save($file, $quality);
+        return $this->doSave($file, $type);
     }
 
     /**
@@ -583,52 +469,58 @@ abstract class Image
      *     // Render the image as a PNG
      *     $data = $image->render('png');
      *
-     * @param string  $type image type to return: png, jpg, gif, etc
-     * @param integer $quality quality of image: 1-100
+     * @param ?string $type image type to return: png, jpg, gif, etc
+     * @param int|null $quality quality of image: 1-100
      * @return  string
-     * @uses    Image::_do_render
      */
-    public function render($type = null, $quality = null)
+    public function render(?string $type = null, int $quality = null): string
     {
-        if ($quality === null)
-            $quality = $this->quality;
-
-        if ($type === null) {
-            // Use the current image type
-            $type = image_type_to_extension($this->type, false);
+        if ($quality !== null) {
+            $this->quality($quality);
         }
 
-        return $this->_do_render($type, $quality);
+        $type = ($type === null)
+            ? $this->type
+            : $this->extensionToImageType($type);
+
+        return $this->doRender($type);
+    }
+
+
+    protected function extensionToImageType(string $extension): int
+    {
+        return match (strtolower($extension)) {
+            'jpg', 'jpe', 'jpeg' => IMAGETYPE_JPEG,
+            'png' => IMAGETYPE_PNG,
+            'webp' => IMAGETYPE_WEBP,
+            'gif' => IMAGETYPE_GIF,
+            'bmp' => IMAGETYPE_BMP,
+            default => IMAGETYPE_UNKNOWN
+        };
     }
 
 
     /**
-     * Execute a resize.
-     *
      * @param integer $width new width
      * @param integer $height new height
      * @return  void
      */
-    abstract protected function _do_resize($width, $height);
+    abstract protected function doResize(int $width, int $height): void;
 
     /**
-     * Execute a crop.
-     *
      * @param integer $width new width
      * @param integer $height new height
-     * @param integer $offset_x offset from the left
-     * @param integer $offset_y offset from the top
+     * @param integer $offsetX offset from the left
+     * @param integer $offsetY offset from the top
      * @return  void
      */
-    abstract protected function _do_crop($width, $height, $offset_x, $offset_y);
+    abstract protected function doCrop(int $width, int $height, int $offsetX, int $offsetY): void;
 
     /**
-     * Execute a rotation.
-     *
      * @param integer $degrees degrees to rotate
      * @return  void
      */
-    abstract protected function _do_rotate($degrees);
+    abstract protected function doRotate(int $degrees): void;
 
     /**
      * Execute a flip.
@@ -636,51 +528,42 @@ abstract class Image
      * @param integer $direction direction to flip
      * @return  void
      */
-    abstract protected function _do_flip($direction);
+    abstract protected function doFlip(int $direction): void;
 
     /**
-     * Execute a sharpen.
-     *
      * @param integer $amount amount to sharpen
      * @return  void
      */
-    abstract protected function _do_sharpen($amount);
+    abstract protected function doSharpen(int $amount): void;
 
     /**
-     * Execute a blur.
-     *
      * @param integer $sigma
      * @return  void
      */
-    abstract protected function _do_blur($sigma);
+    abstract protected function doBlur(int $sigma): void;
 
     /**
-     * Execute a reflection.
-     *
      * @param integer $height reflection height
      * @param integer $opacity reflection opacity
-     * @param boolean $fade_in true to fade out, false to fade in
+     * @param boolean $fadeIn true to fade out, false to fade in
      * @return  void
      */
-    abstract protected function _do_reflection($height, $opacity, $fade_in);
+    abstract protected function doReflection(int $height, int $opacity, bool $fadeIn): void;
 
     /**
-     * Execute a watermarking.
-     *
-     * @param Image   $image watermarking Image
-     * @param integer $offset_x offset from the left
-     * @param integer $offset_y offset from the top
+     * @param Image $image watermarking Image
+     * @param integer $offsetX offset from the left
+     * @param integer $offsetY offset from the top
      * @param integer $opacity opacity of watermark
      * @return  void
      */
-    abstract protected function _do_watermark(Image $image, $offset_x, $offset_y, $opacity);
+    abstract protected function doWatermark(Image $image, int $offsetX, int $offsetY, int $opacity): void;
 
 
-    abstract protected function _do_blank($width, $height, $background);
+    abstract protected function doBlank(int $width, int $height, array $background): void;
 
-    abstract protected function _do_strip();
 
-    abstract protected function _do_copy();
+    abstract protected function doCopy();
 
     /**
      * Execute a background.
@@ -691,24 +574,23 @@ abstract class Image
      * @param integer $opacity opacity
      * @return void
      */
-    abstract protected function _do_background($r, $g, $b, $opacity);
+    abstract protected function doBackground(int $r, int $g, int $b, int $opacity);
 
     /**
      * Execute a save.
      *
-     * @param string  $file new image filename
-     * @param integer $quality quality
+     * @param string $file new image filename
+     * @param integer $type
      * @return  boolean
      */
-    abstract protected function _do_save($file, $quality);
+    abstract protected function doSave(string $file, int $type): bool;
 
     /**
      * Execute a render.
      *
-     * @param string  $type image type: png, jpg, gif, etc
-     * @param integer $quality quality
+     * @param int $type image type
      * @return  string
      */
-    abstract protected function _do_render($type, $quality);
+    abstract protected function doRender(int $type): string;
 
-} // End Image
+}

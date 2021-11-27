@@ -1,48 +1,38 @@
-<?php
+<?php /** @noinspection SpellCheckingInspection */
+declare(strict_types=1);
 
 namespace mii\image\vips;
 
 use Jcupitt\Vips\Exception;
 use Jcupitt\Vips\Interpretation;
 use Jcupitt\Vips\Size;
-use mii\image\ImageException;
+use RuntimeException;
 
 class Image extends \mii\image\Image
 {
     // Temporary image resource
-    /**
-     * @var \Jcupitt\Vips\Image $image
-     */
-    protected $image;
-
-    // Function name to open Image
-    protected $_create_function;
-
-    // Options for create function (autorotate for jpeg)
-    protected $options = [];
-
-    // Flag for strip metadata when save image
-    protected $need_strip;
-
+    protected ?\Jcupitt\Vips\Image $image = null;
 
     /**
-     * Loads the image.
+     * Loads an image into vips.
      *
-     * @param string $file image file path
-     * @throws ImageException
-     * @throws \Exception
+     * @return  void
      */
-    public function __construct($file)
+    protected function loadImage(): void
     {
-        parent::__construct($file);
+        if ($this->image instanceof \Jcupitt\Vips\Image) {
+            return;
+        }
 
         $options = [];
 
-        // Set the image creation function name
         switch ($this->type) {
             case IMAGETYPE_JPEG:
                 $create = 'jpegload';
                 $options = ['autorotate' => true];
+                break;
+            case IMAGETYPE_WEBP:
+                $create = 'webpload';
                 break;
             case IMAGETYPE_GIF:
                 $create = 'gifload';
@@ -50,56 +40,26 @@ class Image extends \mii\image\Image
             case IMAGETYPE_PNG:
                 $create = 'pngload';
                 break;
+            default:
+                $create = 'newFromFile';
         }
 
-        if (!isset($create)) { //  OR !function_exists($create)
-            throw new ImageException('Installed vips does not support ' . image_type_to_extension($this->type, false) . ' images');
+        if (!isset($create)) {
+            throw new RuntimeException('Installed vips does not support ' . image_type_to_extension($this->type, false) . ' images');
         }
 
-        // Save function and options for future use
-        $this->_create_function = $create;
-        $this->options = $options;
+        // Open the temporary image
+        $this->image = \Jcupitt\Vips\Image::$create($this->file, $options);
+        $this->width = $this->image->width;
+        $this->height = $this->image->height;
 
-        $this->_load_image();
-
-        //if($this->image->get('icc-profile-data')) {
         try {
             $this->image = $this->image->icc_import(['embedded' => true]);
 
             if ($this->image->interpretation !== Interpretation::B_W && $this->image->interpretation !== Interpretation::GREY16) {
                 $this->image->colourspace(Interpretation::SRGB);
             }
-        } catch (\Throwable $e) {
-        }
-    }
-
-    /**
-     * Destroys the loaded image to free up resources.
-     *
-     * @return  void
-     */
-    public function __destruct()
-    {
-        // TODO: ?
-        if (is_resource($this->image)) {
-            // Free all resources
-        }
-    }
-
-    /**
-     * Loads an image into vips.
-     *
-     * @return  void
-     * @throws \Jcupitt\Vips\Exception
-     */
-    protected function _load_image()
-    {
-        if (!$this->image instanceof \Jcupitt\Vips\Image) {
-            // Gets create function
-            $create = $this->_create_function;
-            // Open the temporary image
-            $this->image = \Jcupitt\Vips\Image::$create($this->file, $this->options);
-        }
+        } catch (\Throwable) {}
     }
 
     /**
@@ -110,10 +70,9 @@ class Image extends \mii\image\Image
      * @return  void
      * @throws \Jcupitt\Vips\Exception
      */
-    protected function _do_resize($width, $height)
+    protected function doResize(int $width, int $height): void
     {
-        // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         $this->image = $this->image->thumbnail_image($width, ['height' => $height, 'size' => Size::DOWN]);
 
@@ -121,33 +80,24 @@ class Image extends \mii\image\Image
         $this->height = $this->image->height;
     }
 
-    protected function _do_strip()
-    {
-        $this->need_strip = true;
-        return $this;
-    }
 
     /**
      * Execute a render.
      *
-     * @param string  $type image type: png, jpg, gif, etc
-     * @param integer $quality quality
+     * @param int $type image type: png, jpg, gif, etc
      * @return  string
-     * @throws ImageException
+     * @throws Exception
      */
-    protected function _do_render($type, $quality)
+    protected function doRender(int $type): string
     {
-        // Loads image if not yet loaded
-        $this->_load_image();
+        $this->loadImage();
 
         // Get the save function and IMAGETYPE
-        list($save, $type, $options) = $this->_save_function($type, $quality);
+        list($save, $options) = $this->saveFunction($type);
 
-        if ($type !== $this->type) {
-            // Reset the image type and mime type
-            $this->type = $type;
-            $this->mime = image_type_to_mime_type($type);
-        }
+        $this->type = $type;
+
+        $save .= '_buffer'; // i.e. 'jpegsave_buffer'
 
         return $this->image->$save($options);
     }
@@ -155,124 +105,102 @@ class Image extends \mii\image\Image
     /**
      * Get the vips saving function, image type and options for this extension.
      *
-     * @param string $extension image type: png, jpg, etc
-     * @param int    $quality image quality
+     * @param int $type
      * @return array save function, IMAGETYPE_* constant, options
-     * @throws ImageException
      */
-    protected function _save_function($extension, $quality)
+    protected function saveFunction(int $type): array
     {
-        if (!$extension || null === ($type = $this->extension_to_image_type($extension))) {
-            $type = $this->type;
-        }
-
         switch ($type) {
             case IMAGETYPE_JPEG:
-                $save = 'jpegsave_buffer';
-                $type = IMAGETYPE_JPEG;
-                $options = $this->need_strip
-                    ? ['Q' => $quality, 'strip' => true, 'optimize_coding' => true]
-                    : ['Q' => $quality];
+                $save = 'jpegsave';
+                $options = $this->needStrip
+                    ? ['Q' => $this->quality, 'strip' => true, 'optimize_coding' => true]
+                    : ['Q' => $this->quality];
+                break;
+            case IMAGETYPE_WEBP:
+                $save = 'webpsave';
+                $options = $this->needStrip
+                    ? ['Q' => $this->quality, 'strip' => true, 'optimize_coding' => true]
+                    : ['Q' => $this->quality];
                 break;
             case IMAGETYPE_PNG:
-                $save = 'pngsave_buffer';
-                $type = IMAGETYPE_PNG;
+                $save = 'pngsave';
                 // Use a compression level of 9 (does not affect quality!)
                 $options = ['compression' => 9];
-                $quality = 9;
                 break;
             default:
-                throw new ImageException("Installed vips does not support saving $extension images");
-                break;
+                throw new RuntimeException("Installed vips does not support saving $type images");
         }
 
-        return [$save, $type, $options];
+        return [$save, $options];
     }
 
-    protected function extension_to_image_type($extension)
-    {
-        switch (strtolower($extension)) {
-            case 'jpg':
-            case 'jpe':
-            case 'jpeg':
-                return IMAGETYPE_JPEG;
-            case 'png':
-                return IMAGETYPE_PNG;
-            case 'webp':
-                return IMAGETYPE_WEBP;
-            case 'gif':
-                return IMAGETYPE_GIF;
-        }
-        return null;
-    }
-
-    protected function _do_crop($width, $height, $offset_x, $offset_y)
+    protected function doCrop(int $width, int $height, int $offsetX, int $offsetY): void
     {
 
     }
 
-    protected function _do_rotate($degrees)
+    /**
+     * @throws Exception
+     */
+    protected function doRotate(int $degrees): void
     {
-        // todo: bg, alpha, etc
-        switch ($degrees) {
-            case 45:
-                $this->image = $this->image->rot45();
-                break;
-            case 90:
-                $this->image = $this->image->rot90();
-                break;
-            case 180:
-                $this->image = $this->image->rot180();
-                break;
-            case 270:
-                $this->image = $this->image->rot270();
-                break;
-            default:
-                $this->image = $this->image->rotate($degrees);
-        }
+        $this->image = match ($degrees) {
+            45 => $this->image->rot45(),
+            90 => $this->image->rot90(),
+            180 => $this->image->rot180(),
+            270 => $this->image->rot270(),
+            default => $this->image->rotate($degrees),
+        };
     }
 
-    protected function _do_flip($direction)
+    protected function doFlip(int $direction): void
     {
 
     }
 
-    protected function _do_sharpen($amount)
+    protected function doSharpen(int $amount): void
     {
 
     }
 
-    protected function _do_blur($sigma)
+    protected function doBlur(int $sigma): void
     {
 
     }
 
-    protected function _do_reflection($height, $opacity, $fade_in)
+    protected function doReflection(int $height, int $opacity, bool $fadeIn): void
     {
 
     }
 
-    protected function _do_watermark(\mii\image\Image $image, $offset_x, $offset_y, $opacity)
+    protected function doWatermark(\mii\image\Image $image, int $offsetX, int $offsetY, int $opacity): void
     {
 
     }
 
-    protected function _do_background($r, $g, $b, $opacity)
+    protected function doBackground(int $r, int $g, int $b, int $opacity)
     {
 
     }
 
-    protected function _do_save($file, $quality)
+    protected function doSave(string $file, int $type): bool
     {
-        return file_put_contents($file, $this->render(pathinfo($file, PATHINFO_EXTENSION), $quality));
+        $this->loadImage();
+
+        list($save, $options) = $this->saveFunction($type);
+
+        $this->type = $type;
+
+        return $this->image->$save($file, $options);
     }
 
-    protected function _do_blank($width, $height, $background)
+    protected function doBlank(int $width, int $height, array $background): void
     {
 
     }
 
-    public function _do_copy()
+    public function doCopy()
     {
 
     }

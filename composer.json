@@ -10,11 +10,9 @@
   "homepage": "https://github.com/levmorozov/mii-image",
   "license": "MIT",
   "require": {
-    "php": ">=7.4",
-    "levmorozov/mii" : ">=1.9.0"
-  },
-  "suggest": {
-    "jcupitt/vips" : "~1.0.5"
+    "php": ">=8.0",
+    "levmorozov/mii" : ">=1.11.0",
+    "jcupitt/vips" : "~1.0.9"
   },
   "autoload": {
     "psr-4": {
