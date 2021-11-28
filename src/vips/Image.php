@@ -10,7 +10,6 @@ use RuntimeException;
 
 class Image extends \mii\image\Image
 {
-    // Temporary image resource
     protected ?\Jcupitt\Vips\Image $image = null;
 
     /**
@@ -68,7 +67,6 @@ class Image extends \mii\image\Image
      * @param integer $width new width
      * @param integer $height new height
      * @return  void
-     * @throws \Jcupitt\Vips\Exception
      */
     protected function doResize(int $width, int $height): void
     {
@@ -137,7 +135,6 @@ class Image extends \mii\image\Image
 
     protected function doCrop(int $width, int $height, int $offsetX, int $offsetY): void
     {
-
     }
 
     /**
@@ -156,32 +153,26 @@ class Image extends \mii\image\Image
 
     protected function doFlip(int $direction): void
     {
-
     }
 
     protected function doSharpen(int $amount): void
     {
-
     }
 
     protected function doBlur(int $sigma): void
     {
-
     }
 
     protected function doReflection(int $height, int $opacity, bool $fadeIn): void
     {
-
     }
 
     protected function doWatermark(\mii\image\Image $image, int $offsetX, int $offsetY, int $opacity): void
     {
-
     }
 
     protected function doBackground(int $r, int $g, int $b, int $opacity)
     {
-
     }
 
     protected function doSave(string $file, int $type): bool
@@ -190,18 +181,22 @@ class Image extends \mii\image\Image
 
         list($save, $options) = $this->saveFunction($type);
 
-        $this->type = $type;
-
-        return $this->image->$save($file, $options);
+        $status = true;
+        try {
+            $this->image->$save($file, $options);
+            $this->type = $type;
+        } catch (\Throwable $t) {
+            $status = false;
+            \Mii::error($t);
+        }
+        return $status;
     }
 
     protected function doBlank(int $width, int $height, array $background): void
     {
-
     }
 
     public function doCopy()
     {
-
     }
 }

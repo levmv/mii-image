@@ -14,6 +14,9 @@
     "levmorozov/mii" : ">=1.11.0",
     "jcupitt/vips" : "~1.0.9"
   },
+  "suggest": {
+    "ext-gd": "to use gd/Image"
+  },
   "autoload": {
     "psr-4": {
       "mii\\image\\": "src/"

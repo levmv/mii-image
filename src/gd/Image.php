@@ -406,9 +406,6 @@ class Image extends BaseImage
         // Loads image if not yet loaded
         $this->loadImage();
 
-        // Get the extension of the file
-        $extension = pathinfo($file, PATHINFO_EXTENSION);
-
         // Get the save function and IMAGETYPE
         list($save, $type) = $this->saveFunction($type);
 
@@ -420,7 +417,7 @@ class Image extends BaseImage
             $this->type = $type;
         }
 
-        return true;
+        return $status;
     }
 
     /**

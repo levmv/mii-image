@@ -3,6 +3,10 @@
 namespace mii\image;
 
 
+use Mii;
+use RuntimeException;
+use Throwable;
+
 abstract class Image
 {
     // Flipping directions
@@ -32,7 +36,6 @@ abstract class Image
      *
      * @param string $file image file path
      * @return  void
-     * @throws  \Exception
      */
     public function __construct(string $file)
     {
@@ -43,12 +46,12 @@ abstract class Image
             // Get the image information
             $info = getimagesize($realFile);
 
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Ignore all errors while reading the image
         }
 
         if (empty($realFile) || empty($info)) {
-            throw new \RuntimeException('Not an image or invalid image: ' . \mii\util\Debug::path($file));
+            throw new RuntimeException('Not an image or invalid image: ' . \mii\util\Debug::path($file));
         }
 
         $this->file = $realFile;
@@ -71,9 +74,8 @@ abstract class Image
             // Render the current image
             return $this->render();
 
-        } catch (\Throwable $e) {
-
-            \Mii::error($e);
+        } catch (Throwable $e) {
+            Mii::error($e);
 
             // Showing any kind of error will be "inside" image data
             return '';
@@ -114,8 +116,8 @@ abstract class Image
         }
 
         // Convert the width and height to integers, minimum value is 1px
-        $width = max(round($width), 1);
-        $height = max(round($height), 1);
+        $width = (int) max(round($width), 1);
+        $height = (int) max(round($height), 1);
 
         if($upscale || ($width < $this->width && $height < $this->height)) {
             $this->doResize($width, $height);
@@ -434,7 +436,7 @@ abstract class Image
             $file = $this->file;
             $type = $this->type;
         } else {
-            $file = \Mii::resolve($file);
+            $file = Mii::resolve($file);
             if($type === null) {
                 $type = $this->extensionToImageType(pathinfo($file, PATHINFO_EXTENSION));
             }
@@ -446,14 +448,14 @@ abstract class Image
 
         if (is_file($file)) {
             if (!is_writable($file)) {
-                throw new \RuntimeException('File must be writable: ' . \mii\util\Debug::path($file));
+                throw new RuntimeException('File must be writable: ' . \mii\util\Debug::path($file));
             }
         } else {
             // Get the directory of the file
             $directory = realpath(pathinfo($file, PATHINFO_DIRNAME));
 
             if (!is_dir($directory) || !is_writable($directory)) {
-                throw new \RuntimeException('Directory must be writable: ' . \mii\util\Debug::path($directory));
+                throw new RuntimeException('Directory must be writable: ' . \mii\util\Debug::path($directory));
             }
         }
 
