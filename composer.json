@@ -1,5 +1,5 @@
 {
-  "name": "levmorozov/mii-image",
+  "name": "levmv/mii-image",
   "type": "library",
   "description": "Mii image component",
   "keywords": [
@@ -7,7 +7,7 @@
     "image lib",
     "gmagick"
   ],
-  "homepage": "https://github.com/levmorozov/mii-image",
+  "homepage": "https://github.com/levmv/mii-image",
   "license": "MIT",
   "require": {
     "php": ">=7.4",
