@@ -1,5 +1,5 @@
 {
-  "name": "levmorozov/mii-image",
+  "name": "levmv/mii-image",
   "type": "library",
   "description": "Mii image component",
   "keywords": [
@@ -7,12 +7,12 @@
     "image lib",
     "gmagick"
   ],
-  "homepage": "https://github.com/levmorozov/mii-image",
+  "homepage": "https://github.com/levmv/mii-image",
   "license": "MIT",
   "require": {
     "php": ">=8.0",
-    "levmorozov/mii" : ">=1.11.0",
-    "jcupitt/vips" : "~1.0.9"
+    "levmv/mii" : ">=1.11.0",
+    "jcupitt/vips" : "^2.1.0"
   },
   "suggest": {
     "ext-gd": "to use gd/Image"
