@@ -118,7 +118,7 @@ class Image extends \mii\image\Image
             case IMAGETYPE_WEBP:
                 $save = 'webpsave';
                 $options = $this->needStrip
-                    ? ['Q' => $this->quality, 'strip' => true, 'optimize_coding' => true]
+                    ? ['Q' => $this->quality, 'strip' => true]
                     : ['Q' => $this->quality];
                 break;
             case IMAGETYPE_PNG:
